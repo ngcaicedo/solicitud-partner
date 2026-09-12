@@ -1,0 +1,77 @@
+# 02 — Modelos de dominio y seedwork local
+
+Estado: implementado y verificado localmente. Dependencia: 01. [Evidencia de ejecución](evidencia-02-modelo-dominio-seedwork.md) · [Modelo implementado](../modelo-dominio.md).
+
+## Objetivo
+
+Implementar los modelos de dominio de Solicitudes de Partner y Reglas de Partner: el agregado `SolicitudPartner`, sus objetos valor y transiciones; la política `PoliticaPartner` y su evaluación `EvaluacionReglasPartner`; y los eventos y contratos que comunicarán los resultados entre ambos módulos. Crear el seedwork local con las abstracciones compartidas y verificar las invariantes mediante pruebas unitarias sin I/O.
+
+Organizar cada módulo en las capas `aplicacion/`, `dominio/` e `infraestructura/`. En este incremento, implementar los modelos y sus reglas en `dominio/`, independientes de los adaptadores HTTP, de persistencia y de mensajería. Cada módulo conserva sus entidades y políticas; la comunicación se define mediante contratos explícitos. Las abstracciones generales se ubican en la capa correspondiente de `seedwork/`.
+
+## Trabajo
+
+1. Usar directamente el lenguaje del Event Storming: `SolicitudPartner`, `EvaluacionReglasPartner` y `PoliticaPartner`. Mantener la distinción entre solicitud, caso y trabajo en las responsabilidades de cada modelo; el servicio no aprueba cobertura de siniestros ni cierra trabajos.
+2. Definir entradas mínimas y las transiciones `RECIBIDA → LISTA_PARA_ATENCION | RECHAZADA`. La solicitud incluye `TipoSolicitud` (`SINIESTRO` o `INSTALACION`). Para siniestros, `aprobacion_previa` es un booleano obligatorio declarado por el partner: `false` es un dato válido que permitirá demostrar rechazo empresarial; omitirlo o enviarlo con tipo incorrecto es un error de validación previo al registro. Las instalaciones no requieren este dato. Para quedar lista, la solicitud conserva una evaluación favorable con la condición de red aplicable; para quedar rechazada, una evaluación desfavorable con motivo explícito. Una política ausente, ajena o inválida genera error de configuración y mantiene la solicitud registrada en `RECIBIDA`. Un estado de publicación pertenece al outbox, no al estado empresarial.
+3. Crear seedwork local con igualdad por identidad para `Entidad`/`AgregacionRaiz` e igualdad por atributos para objetos valor, `AgregacionRaiz` con eventos pendientes propios de cada instancia, `EventoDominio` inmutable y puertos mínimos de `Repositorio`/`UnidadTrabajo`. Definir consulta y retiro de pendientes sin exponer colecciones mutables internas. Agregar abstracciones de `Comando`/`Consulta`/`Manejador` únicamente al darles usos concretos.
+4. Red: probar estado inicial, datos inválidos, identidad inmutable, transiciones inválidas y evento producido por cada cambio válido. Green: implementar `SolicitudPartner` y objetos valor.
+5. Modelar `EvaluacionReglasPartner`: identidad de evaluación, solicitud y partner evaluados, identidad/versión de política, resultado e instante de evaluación. Un resultado `ADMISIBLE` contiene `TipoRedProveedores` (`GENERAL_HDA` u `HOMOLOGADA_PARTNER`) y no tiene motivo de rechazo; `NO_ADMISIBLE` contiene el motivo `APROBACION_PREVIA_REQUERIDA` y no determina red. Para red homologada, el partner evaluado identifica de quién se exige la homologación. La política pertenece exclusivamente a Reglas. Conservar el resultado como datos inmutables; Solicitudes lo recibe mediante contrato sin importar el modelo interno de Reglas.
+6. Implementar dos reglas pequeñas en `PoliticaPartner`: exigir aprobación previa declarada para solicitudes de siniestro y determinar el tipo de red para las solicitudes admisibles. Primero comprobar que la política existe, es válida y corresponde al partner. Después, un siniestro con `aprobacion_previa=false` produce `NO_ADMISIBLE` con motivo `APROBACION_PREVIA_REQUERIDA`; con `true` continúa. Una instalación continúa sin evaluar aprobación previa. Para solicitudes admisibles, determinar red general de HdA o red homologada del partner. Reglas comunica el resultado mediante `ReglasDePartnerEvaluadas`; Solicitudes aplica su transición y solo si queda lista transmite las condiciones a Orquestación. La aprobación previa y la variación de red se fundamentan en las páginas 9 y 13 del [enunciado](../../../../Proyecto-202614-HogarDeLosAlpes.pdf). El booleano, el motivo de rechazo y las asignaciones de red de los partners de ejemplo son decisiones de la POC, no contratos literales del enunciado. No verificar cobertura, autenticidad de la aprobación ni consultar aseguradoras; tampoco seleccionar proveedores o verificar homologaciones. La política fija una red por partner; SLA, montos y pasos posteriores de aprobación quedan fuera del recorte.
+7. Red: siniestro aprobado con red general, siniestro aprobado con red homologada, siniestro sin aprobación que se rechaza e instalación sin aprobación que continúa con la red configurada. Probar además política ajena/ausente/inválida y trazabilidad de identidad/versión. Green: evaluador puro que recibe datos y política, sin acceder a repositorios ni a un reloj global. Los errores de configuración no producen evaluación ni evento, ni usan red general por defecto. Probar que modificar o reemplazar una política después de evaluar no altera el resultado, motivo, condición de red o versión conservados en la evaluación anterior.
+8. Definir contratos inmutables para registro, evaluación, solicitud lista y solicitud rechazada, según la matriz siguiente. Incluir identidad e instante original de cada hecho e identificadores de solicitud/partner. Transportar resultado, motivo o condición de red y trazabilidad de política hasta el evento final correspondiente. Mantener la versión de solicitud separada de la versión de política y de la futura versión de esquema. La solicitud comienza en versión 1 al registrarse y avanza a 2 al quedar lista o rechazada tras su única evaluación inicial; una repetición o fallo técnico no incrementa la versión. Un rechazo empresarial válido sí cambia estado y genera evento. El evento de evaluación referencia la versión evaluada sin incrementarla. Los contratos concretos pertenecen a sus módulos, no al seedwork.
+9. Red: aplicar una evaluación ajena, de una versión incorrecta o con resultado incoherente no modifica estado, versión ni pendientes. Una evaluación admisible exige red válida y ausencia de motivo; una no admisible exige motivo y ausencia de red. Green: proteger estas invariantes en `SolicitudPartner` al recibir el contrato, sin recalcular la política. Reentregar la misma evaluación con igual identidad y contenido es una operación sin efecto ni evento nuevo. Una evaluación distinta no sustituye la inicial, aunque coincida su resultado. No permitir cambiar de red ni pasar de rechazada a lista o de lista a rechazada. Reevaluaciones quedan fuera del alcance; la deduplicación de mensajes mediante inbox llegará en 04.
+10. Red: crear una solicitud emite el registro; reconstruir una solicitud recibida, lista o rechazada conserva identidad, datos, evaluación, resultado, motivo, condición de red y versión, sin eventos pendientes. Una recibida aún no tiene evaluación; una lista tiene evaluación admisible y red, sin motivo de rechazo; una rechazada tiene evaluación no admisible y motivo, sin red. Green: separar creación y reconstrucción sin imponer una jerarquía adicional. Verificar pendientes aislados entre agregados, consulta/retiro sin exposición mutable y transición fallida sin cambios de estado ni pendientes. Probar sin SQL ni reproducción de un historial de eventos.
+
+## Organización de archivos dentro del dominio
+
+Separar las responsabilidades por tipo de elemento; no agrupar entidades, objetos valor y servicios en un archivo genérico `modelos.py`. Usar la siguiente distribución:
+
+| Ubicación | Archivo | Contenido |
+|---|---|---|
+| `modulos/solicitudes/dominio/` | `entidades.py` | `SolicitudPartner`, con sus transiciones y reconstrucción. |
+| `modulos/solicitudes/dominio/` | `objetos_valor.py` | `DatosSolicitud`, `TipoSolicitud` y `EstadoSolicitud`. |
+| `modulos/reglas_partner/dominio/` | `entidades.py` | `EvaluacionReglasPartner`. |
+| `modulos/reglas_partner/dominio/` | `objetos_valor.py` | `PoliticaPartner`, `TipoRedProveedores`, `ResultadoEvaluacion` y `MotivoRechazo`. |
+| `modulos/reglas_partner/dominio/` | `servicios.py` | Evaluador puro `evaluar_solicitud`. |
+| `modulos/reglas_partner/dominio/` | `excepciones.py` | `ErrorConfiguracionPolitica`. |
+| Cada módulo, dentro de `dominio/` | `repositorios.py` | Puertos específicos del módulo. |
+| Cada módulo | `contratos.py` | Mensajes explícitos entre módulos; exponen los tipos de sus campos sin duplicar sus definiciones. |
+| `seedwork/dominio/` | `entidades.py` | `Entidad` y `AgregacionRaiz`. |
+| `seedwork/dominio/` | `objetos_valor.py` | Base `ObjetoValor`. |
+| `seedwork/dominio/` | `eventos.py` | Base `EventoDominio`. |
+| `seedwork/dominio/` | `repositorios.py` y `validaciones.py` | Puerto genérico y validaciones compartidas. |
+| `seedwork/aplicacion/` | `unidad_trabajo.py` | Puerto de unidad de trabajo. |
+
+Los imports internos apuntan al archivo responsable. Entre módulos se mantiene el acceso exclusivamente mediante `contratos.py`; las enumeraciones de Reglas se definen en sus objetos valor y se reexportan explícitamente desde el contrato. No crear archivos sin contenido para completar una plantilla.
+
+Al reorganizar, actualizar imports de código, pruebas y verificación de distribución, retirar los `modelos.py` sustituidos y ejecutar la suite completa, lint, formato, tipado e instalación del wheel. El comportamiento, los contratos y sus identidades de clase se conservan dentro del proceso; no hay datos persistidos ni esquemas de transporte que migrar en este incremento.
+
+## Eventos y contratos del incremento
+
+Los nombres de clases y eventos se escriben en español y conservan el vocabulario del Event Storming. La matriz define consumidores previstos; sus handlers, adaptadores y proyecciones se implementan en los planes posteriores.
+
+| Hecho / clase | Productor y propietario | Consumidor previsto | Datos mínimos específicos, además de identidad e instante del evento |
+|---|---|---|---|
+| Solicitud registrada / `SolicitudPartnerRegistrada` | Solicitudes | Reglas y proyección de Solicitudes | Solicitud, partner, referencia externa, tipo de solicitud, aprobación previa cuando es siniestro, categoría, fecha de recepción y versión 1. La categoría describe la necesidad, no es criterio de rechazo. |
+| Reglas evaluadas / `ReglasDePartnerEvaluadas` | Reglas | Solicitudes | Evaluación, solicitud, partner, versión evaluada, identidad/versión de política, resultado, red si es admisible o motivo si no lo es, e instante de evaluación. |
+| Solicitud lista / `SolicitudPartnerListaParaAtencion` | Solicitudes | Proyección y adaptador de integración | Solicitud, partner, referencia, tipo de solicitud, categoría, fecha de recepción, estado listo, versión 2, identidad de evaluación, identidad/versión de política, resultado admisible, red e instantes de evaluación y transición. |
+| Solicitud rechazada / `SolicitudPartnerRechazada` | Solicitudes | Proyección de Solicitudes | Solicitud, partner, referencia, tipo de solicitud, categoría, fecha de recepción, estado rechazado, versión 2, identidad de evaluación, identidad/versión de política, resultado no admisible, motivo e instantes de evaluación y transición. Sin red determinada. |
+
+Los eventos de solicitud lista y rechazada contienen los datos necesarios para la vista prevista en 06 sin releer el estado mutable de escritura. La identidad e instante de cada hecho se asignan una sola vez y se conservan al trasladarlo a contratos y al reentregarlo. El sobre de transporte, la serialización y el payload público definitivo de `SolicitudDePartnerListaParaAtencion.v1` corresponden a 05; ese contrato debe conservar la condición de red y el partner al que corresponde, sin publicar directamente la clase interna. Una solicitud rechazada solo actualiza su estado y la vista; no publica `SolicitudDePartnerListaParaAtencion.v1` ni desencadena la creación de un Trabajo.
+
+## Ubicación y restricciones
+
+Entidades, objetos valor, eventos, fábricas y políticas concretos pertenecen a `src/solicitudes_partner/modulos/solicitudes/dominio/` o `src/solicitudes_partner/modulos/reglas_partner/dominio/`. Las abstracciones compartidas se ubican en `src/solicitudes_partner/seedwork/`, dentro de la capa correspondiente. Seedwork contiene mecanismos generales, nunca políticas ni estados concretos. SQLAlchemy, FastAPI y Pulsar permanecen fuera de las capas de dominio. Aplicar la [convención común de nombres](README.md#convención-de-nombres-para-todos-los-planes); los identificadores propios se escriben en español, sin tildes, usando el vocabulario del Event Storming.
+
+Si la evaluación se conserva como registro inmutable simple, justificar esa elección; no imponer un agregado complejo por ceremonia. Documentar qué invariantes protege cada raíz realmente usada.
+
+## Cierre y evidencia
+
+Registrar evidencia Red → Green → Refactor de ambos modelos mediante tests unitarios sin I/O. El incremento se cierra cuando se comprueben todos los criterios siguientes:
+
+- **Contratos y versiones (H1):** ejemplos inmutables de los cuatro eventos; registro en versión 1 y solicitud lista o rechazada en versión 2. La evaluación referencia la versión evaluada. Resultado, red o motivo y trazabilidad llegan sin alteración al evento final y bastan para proyectar la vista. Errores de validación/configuración y repeticiones no generan una transición; el rechazo empresarial válido sí genera su evento.
+- **Invariantes de evaluación (H2):** el agregado impide resultados ajenos, versiones incorrectas, combinaciones incoherentes de resultado/red/motivo y cambios después de la decisión inicial. La misma evaluación repetida es una operación sin efecto. Comprobar estado, resultado, red, motivo, evaluación, versión y pendientes sin depender de un handler para proteger la regla.
+- **Coherencia de política (H3):** siniestros aprobados con ambos tipos de red; siniestro con aprobación falsa rechazado con `APROBACION_PREVIA_REQUERIDA`; instalación sin aprobación admitida con su red. La falta del campo obligatorio en un siniestro es error de datos, distinto de declarar `false`. Política ajena/ausente/inválida genera error de configuración, no rechazo empresarial. El resultado previo conserva su identidad/versión de política, motivo y red aunque cambie la configuración. Fixtures rotulados como decisiones de POC.
+- **Creación y reconstrucción (H4):** crear produce el evento de registro; reconstruir cada estado válido conserva sus datos y versión sin producir eventos. Los pendientes están aislados por agregado y su consulta/retiro no expone estado mutable interno.
+- **Documentación y aislamiento:** organización de archivos conforme a la tabla anterior, sin imports a los `modelos.py` sustituidos; invariantes por raíz, matriz de contratos y fixtures rotulados. Verificar independencia del dominio respecto a HTTP, ORM y mensajería, además de ausencia de I/O; la prueba existente de lifespan no sustituye esa comprobación.
+
+El plan 03 demostrará estas reglas mediante el recorrido entre handlers y utilizará los puertos definidos aquí con sus dobles. El plan 04 comprobará mapeo SQL, transacciones y deduplicación durable; el plan 06, la proyección real. Este cierre no acredita aún comunicación ejecutable entre módulos, CQRS ni publicación externa.

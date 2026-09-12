@@ -1,6 +1,6 @@
 # Plan de construcción — Entrada de Solicitudes de Partner
 
-Fecha: 2026-09-12. Estado: plan 01 implementado y verificado localmente; CI configurada, ejecución remota pendiente. Planes 02–08 pendientes. [Evidencia del plan 01](evidencia-01-base-tecnologica.md).
+Fecha: 2026-09-12. Estado: planes 01 y 02 implementados y verificados localmente. Planes 03–08 pendientes. [Evidencia del plan 01](evidencia-01-base-tecnologica.md) · [Evidencia del plan 02](evidencia-02-modelo-dominio-seedwork.md).
 
 ## Acuerdos que gobiernan la implementación
 
@@ -11,7 +11,7 @@ Fecha: 2026-09-12. Estado: plan 01 implementado y verificado localmente; CI conf
 - Agrupación de POC aprobada por Nicolás: Entrada y una porción de Reglas se despliegan juntas. La entrega 2 sí las describía como servicios independientes: esta agrupación es una adaptación explícita, no una propiedad ya existente del TO-BE.
 - Las carpetas `dominio/` representan capas de modelo de negocio, no nuevos dominios empresariales. CQRS tampoco constituye un dominio adicional.
 - FastAPI, SQLAlchemy, uv y pruebas unitarias forman parte del primer incremento.
-- Carpetas y paquetes propios en español según la convención siguiente; identificadores de clases, funciones y variables en inglés. Documentación y explicaciones en español. Mantener un glosario que relacione nombres en inglés con el lenguaje académico y los contratos publicados en español.
+- Carpetas, paquetes e identificadores propios de clases, funciones, variables, estados y eventos en español según la convención siguiente. Usar directamente el vocabulario del Event Storming en código y documentación, sin un glosario de traducción al inglés.
 - Sin Event Sourcing. Estado relacional, outbox e inbox no equivalen a un event store.
 - Este repositorio cuenta como uno de los cuatro servicios requeridos. Orquestación, Cotizaciones y Scoring pertenecen a los otros responsables.
 
@@ -28,7 +28,7 @@ Las carpetas de módulos, capas y suites se nombran en español, sin tildes y co
 | Seedwork local | `src/solicitudes_partner/seedwork/` |
 | Pruebas | `tests/unitarias/`, `tests/api/`, `tests/integracion/`, `tests/contratos/` |
 
-Se conservan los nombres técnicos `src`, `api`, `config`, `seedwork`, `tests` y la ruta acordada `docs/plans`. También se mantienen archivos convencionales como `README.md`, `pyproject.toml` y `uv.lock`. No traducir por este cambio identificadores como `PartnerRequest` o `create_app`, nombres de herramientas, ni contratos públicos acordados con otros servicios. Los ejemplos de rutas, imports y comandos deben usar los paquetes anteriores.
+Se conservan los nombres técnicos `src`, `api`, `config`, `seedwork`, `tests` y la ruta acordada `docs/plans`. También se mantienen archivos convencionales como `README.md`, `pyproject.toml` y `uv.lock`. Los identificadores propios nuevos usan español sin tildes: `SolicitudPartner`, `registrar_solicitud` y `RECIBIDA`. Conservar los nombres impuestos por bibliotecas y herramientas y los contratos públicos acordados con otros servicios. Esta convención reemplaza el acuerdo anterior de identificadores en inglés; la base tecnológica ya implementada conserva por ahora sus nombres hasta una refactorización explícita. Los ejemplos de rutas, imports y comandos deben usar los paquetes anteriores.
 
 ## Secuencia
 

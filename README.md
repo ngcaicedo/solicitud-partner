@@ -4,18 +4,19 @@ Microservicio de Entrada de Solicitudes de Partner de Hogar de los Alpes, para e
 
 ## Estado actual
 
-El **plan 01 está implementado y verificado localmente**. El servicio ofrece la base técnica sobre la que se construirá el flujo de solicitudes.
+Los **planes 01 y 02 están implementados y verificados localmente**. El servicio cuenta con base técnica y modelos de dominio; la ejecución del flujo mediante handlers y mensajería comienza en el plan 03.
 
 | Componente | Estado |
 |---|---|
 | Paquete Python y entorno uv | Instalación reproducible con `uv.lock`. |
 | FastAPI | Factoría de aplicación y `GET /health/live`. |
 | SQLAlchemy y psycopg | Factoría de Engine y sesiones independientes, sin conexión durante el arranque. |
-| Módulos y seedwork | Paquetes creados; modelos y abstracciones pendientes del plan 02. |
-| Verificación local | 14 pruebas aprobadas; lint, formato, tipado, distribución y HTTP real comprobados. |
-| Flujo de negocio, eventos y CQRS | Pendientes de los siguientes incrementos. CQRS sigue siendo obligatorio. |
+| Módulos y seedwork | Solicitud, política, evaluación, agregación raíz, eventos y puertos implementados. |
+| Verificación local | 82 pruebas aprobadas; lint, formato, tipado y distribución comprobados. HTTP real verificado en 01. |
+| Contratos internos | Registro, evaluación, solicitud lista y rechazada, con versiones y datos inmutables. |
+| Handlers, mensajería y CQRS | Pendientes de los siguientes incrementos. CQRS sigue siendo obligatorio. |
 
-Los resultados corresponden a la corrida registrada del 12 de septiembre de 2026. [Evidencia y límites](docs/plans/evidencia-01-base-tecnologica.md) · [Planes de construcción](docs/plans/README.md).
+Los resultados corresponden a la corrida registrada del 12 de septiembre de 2026. [Evidencia del plan 01](docs/plans/evidencia-01-base-tecnologica.md) · [Evidencia del plan 02](docs/plans/evidencia-02-modelo-dominio-seedwork.md) · [Modelo de dominio](docs/modelo-dominio.md) · [Planes de construcción](docs/plans/README.md).
 
 ## Entorno
 
@@ -65,7 +66,7 @@ uv run --locked python scripts/verify_distribution.py
 
 El script de distribución crea un entorno temporal con dependencias de producción del lockfile, construye sdist y wheel, reinstala ese wheel sin resolver otras dependencias y lo importa desde fuera del árbol fuente con Python en modo aislado. Elimina sus archivos temporales al terminar. Para generar artefactos conservables en `dist/`, ejecutar `uv build`.
 
-Las suites `tests/unitarias` y `tests/api` son las habilitadas en este incremento. `tests/integracion` y `tests/contratos` reservan la estructura futura; aún no contienen casos y no representan cobertura. Las pruebas bloquean los puntos de conexión Python al verificar importación y lifespan; el cliente Pulsar nativo todavía no forma parte de la aplicación.
+Las suites `tests/unitarias` (incluido `dominio/`) y `tests/api` son las habilitadas en este incremento. `tests/integracion` y `tests/contratos` reservan la estructura futura; aún no contienen casos y no representan cobertura. Las pruebas bloquean los puntos de conexión Python al verificar importación y lifespan; el cliente Pulsar nativo todavía no forma parte de la aplicación.
 
 TestClient usa `httpx2`, requerido por la versión resuelta de Starlette; por ello sustituye al `httpx` inicialmente propuesto. Hay una advertencia visible de Starlette por el alias obsoleto `anyio.abc.BlockingPortal`. No se modifica código de terceros ni se suprime esa advertencia. Las deprecaciones originadas en el paquete propio hacen fallar pytest.
 
@@ -109,18 +110,18 @@ scripts/
 docs/plans/
 ```
 
-Las carpetas de módulos, capas y suites se nombran en español; clases, funciones y variables usan inglés. Se conservan los nombres técnicos `api`, `config`, `seedwork`, `src` y `tests`.
+Las carpetas y los nuevos identificadores propios de clases, funciones, variables, estados y eventos se nombran en español, sin tildes y con el vocabulario del Event Storming. La base tecnológica ya implementada conserva por ahora sus nombres; los identificadores impuestos por bibliotecas y herramientas mantienen su forma original. Se conservan los nombres técnicos `api`, `config`, `seedwork`, `src` y `tests`.
 
-`api/` contiene el adaptador HTTP y la composición de la aplicación. `config/` contiene la lectura del entorno y la construcción de recursos SQLAlchemy. Los módulos y seedwork son paquetes mínimos, sin clases de negocio vacías.
+`api/` contiene el adaptador HTTP y la composición de la aplicación. `config/` contiene la lectura del entorno y la construcción de recursos SQLAlchemy. Los módulos separan entidades y objetos valor; Reglas también separa servicios y excepciones. Los contratos permanecen en `contratos.py` por módulo. Seedwork separa entidades, objetos valor y eventos en archivos propios. Véase el [modelo implementado](docs/modelo-dominio.md) para responsabilidades, invariantes y límites.
 
 ### Presentación y seedwork
 
 Por ahora, la presentación HTTP vive en `api/`. No existe `seedwork/presentacion/`: se podrá incorporar cuando haya mecanismos comunes concretos, como un formato de errores y sus manejadores HTTP reutilizados por ambos módulos. Los endpoints y DTO específicos conservarán su ubicación en el adaptador correspondiente. Dominio y aplicación no deberán depender de ese soporte de presentación.
 
-Seedwork será local a este servicio y contendrá abstracciones con usos reales. No será una biblioteca de negocio compartida entre los cuatro microservicios.
+Seedwork es local a este servicio y contiene las abstracciones utilizadas por los modelos y los puertos previstos para los próximos incrementos. No es una biblioteca de negocio compartida entre los cuatro microservicios.
 
 ## Próximos incrementos
 
-El siguiente paso es el [plan 02: modelos de dominio y seedwork](docs/plans/02-modelo-dominio-seedwork.md). Después se implementarán comandos y eventos internos, persistencia transaccional, Pulsar, CQRS y experimentación, según la [secuencia acordada](docs/plans/README.md).
+El siguiente paso es el [plan 03: comandos y comunicación interna](docs/plans/03-comandos-eventos-internos.md). Después se implementarán persistencia transaccional, Pulsar, CQRS y experimentación, según la [secuencia acordada](docs/plans/README.md).
 
-Este incremento aún no registra solicitudes ni implementa eventos, outbox, persistencia de negocio o experimentos. Entrada y una porción de Reglas se agrupan explícitamente para la POC; sus dos módulos internos cuentan como **un servicio** dentro de los cuatro requeridos. Orquestación, Cotizaciones y Scoring quedan fuera de este repositorio.
+El dominio registra y evalúa solicitudes en memoria y produce eventos internos. Todavía no hay recepción de solicitudes por HTTP, bus, outbox, persistencia de negocio o experimentos. Entrada y una porción de Reglas se agrupan explícitamente para la POC; sus dos módulos internos cuentan como **un servicio** dentro de los cuatro requeridos. Orquestación, Cotizaciones y Scoring quedan fuera de este repositorio.
