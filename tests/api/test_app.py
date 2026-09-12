@@ -1,0 +1,74 @@
+from unittest.mock import Mock
+
+import pytest
+from fastapi.testclient import TestClient
+
+from solicitudes_partner.api.app import create_app, get_settings
+from solicitudes_partner.config.database import Database
+from solicitudes_partner.config.settings import Settings
+
+
+def test_liveness_without_infrastructure() -> None:
+    with TestClient(create_app(Settings())) as client:
+        response = client.get("/health/live")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "service": "solicitudes-partner"}
+
+
+def test_overrides_are_scoped_to_each_application() -> None:
+    first_app = create_app(Settings(service_name="first"))
+    second_app = create_app(Settings(service_name="second"))
+    first_app.dependency_overrides[get_settings] = lambda: Settings(service_name="overridden")
+    try:
+        with TestClient(first_app) as first_client, TestClient(second_app) as second_client:
+            assert first_client.get("/health/live").json()["service"] == "overridden"
+            assert second_client.get("/health/live").json()["service"] == "second"
+    finally:
+        first_app.dependency_overrides.clear()
+    assert second_app.dependency_overrides == {}
+    with TestClient(first_app) as client:
+        assert client.get("/health/live").json()["service"] == "first"
+
+
+@pytest.mark.parametrize("raise_error", [False, True])
+def test_owned_database_is_closed_even_on_error(raise_error: bool) -> None:
+    database = Mock(spec=Database)
+    factory = Mock(return_value=database)
+    application = create_app(Settings(database_url="postgresql+psycopg://test"), factory)
+
+    def exercise_lifespan() -> None:
+        with TestClient(application) as client:
+            assert client.get("/health/live").status_code == 200
+            database.close.assert_not_called()
+            if raise_error:
+                raise RuntimeError("operation failed")
+
+    if raise_error:
+        with pytest.raises(RuntimeError, match="operation failed"):
+            exercise_lifespan()
+    else:
+        exercise_lifespan()
+    factory.assert_called_once_with("postgresql+psycopg://test")
+    database.close.assert_called_once_with()
+    assert application.state.database is None
+
+
+def test_database_resources_are_not_shared_between_applications() -> None:
+    first_database = Mock(spec=Database)
+    second_database = Mock(spec=Database)
+    factory = Mock(side_effect=[first_database, second_database])
+    settings = Settings(database_url="postgresql+psycopg://test")
+    first_app = create_app(settings, factory)
+    second_app = create_app(settings, factory)
+    with TestClient(first_app), TestClient(second_app):
+        assert first_app.state.database is first_database
+        assert second_app.state.database is second_database
+    first_database.close.assert_called_once_with()
+    second_database.close.assert_called_once_with()
+
+
+def test_no_database_factory_is_called_without_configuration() -> None:
+    factory = Mock(side_effect=AssertionError("database not configured"))
+    with TestClient(create_app(Settings(), factory)) as client:
+        assert client.get("/health/live").status_code == 200
+    factory.assert_not_called()

@@ -1,0 +1,69 @@
+# Plan de construcción — Entrada de Solicitudes de Partner
+
+Fecha: 2026-09-12. Estado: plan 01 implementado y verificado localmente; CI configurada, ejecución remota pendiente. Planes 02–08 pendientes. [Evidencia del plan 01](evidencia-01-base-tecnologica.md).
+
+## Acuerdos que gobiernan la implementación
+
+- Construcción desde cero en esta carpeta; entrega 3 es referencia histórica.
+- Dominio de negocio: Atención de solicitudes de partner B2B2C.
+- Un servicio desplegable con dos módulos: Solicitudes de Partner y Reglas de Partner. Cada módulo tiene Aplicación, Dominio e Infraestructura, siguiendo la organización de los tutoriales de AeroAlpes.
+- Seedwork local, arquitectura hexagonal, DDD táctico, CQRS obligatorio y comunicación por eventos.
+- Agrupación de POC aprobada por Nicolás: Entrada y una porción de Reglas se despliegan juntas. La entrega 2 sí las describía como servicios independientes: esta agrupación es una adaptación explícita, no una propiedad ya existente del TO-BE.
+- Las carpetas `dominio/` representan capas de modelo de negocio, no nuevos dominios empresariales. CQRS tampoco constituye un dominio adicional.
+- FastAPI, SQLAlchemy, uv y pruebas unitarias forman parte del primer incremento.
+- Carpetas y paquetes propios en español según la convención siguiente; identificadores de clases, funciones y variables en inglés. Documentación y explicaciones en español. Mantener un glosario que relacione nombres en inglés con el lenguaje académico y los contratos publicados en español.
+- Sin Event Sourcing. Estado relacional, outbox e inbox no equivalen a un event store.
+- Este repositorio cuenta como uno de los cuatro servicios requeridos. Orquestación, Cotizaciones y Scoring pertenecen a los otros responsables.
+
+## Convención de nombres para todos los planes
+
+Las carpetas de módulos, capas y suites se nombran en español, sin tildes y con `snake_case`. Esta convención aplica a los ocho planes y al README del servicio que se creará en el plan 01.
+
+| Elemento | Ruta desde la raíz del repositorio |
+|---|---|
+| Paquete del servicio | `src/solicitudes_partner/` |
+| Solicitudes de Partner | `src/solicitudes_partner/modulos/solicitudes/` |
+| Reglas de Partner | `src/solicitudes_partner/modulos/reglas_partner/` |
+| Capas de cada módulo y del seedwork | `aplicacion/`, `dominio/`, `infraestructura/` |
+| Seedwork local | `src/solicitudes_partner/seedwork/` |
+| Pruebas | `tests/unitarias/`, `tests/api/`, `tests/integracion/`, `tests/contratos/` |
+
+Se conservan los nombres técnicos `src`, `api`, `config`, `seedwork`, `tests` y la ruta acordada `docs/plans`. También se mantienen archivos convencionales como `README.md`, `pyproject.toml` y `uv.lock`. No traducir por este cambio identificadores como `PartnerRequest` o `create_app`, nombres de herramientas, ni contratos públicos acordados con otros servicios. Los ejemplos de rutas, imports y comandos deben usar los paquetes anteriores.
+
+## Secuencia
+
+| Plan | Resultado | Dependencia |
+|---|---|---|
+| [01 — Base tecnológica](01-base-tecnologica.md) | Entorno uv, FastAPI, SQLAlchemy y pruebas aisladas | Ninguna |
+| [02 — Modelo y seedwork](02-modelo-dominio-seedwork.md) | Dos modelos delimitados y contratos internos | 01 |
+| [03 — Flujo interno](03-comandos-eventos-internos.md) | Registro, evaluación y resultado por eventos | 02 |
+| [04 — Persistencia confiable](04-sqlalchemy-uow-outbox.md) | PostgreSQL, UoW, migraciones, outbox e inbox | 03 |
+| [05 — Pulsar y contratos](05-pulsar-contratos.md) | Publicación automática y consumidores recuperables | 04 |
+| [06 — CQRS y API](06-cqrs-api.md) | Proyección asíncrona, consultas y API del servicio | 05 |
+| [07 — Integración y experimentos](07-integracion-experimentos.md) | Evidencia de idempotencia, recuperación y carga | 06 |
+| [08 — Despliegue y sustentación](08-despliegue-sustentacion.md) | Ejecución reproducible y documentación de resultados | 07 |
+
+Ejecutar en orden. Cada plan contiene trabajo, verificación y criterios de cierre. Marcar un plan completo únicamente al registrar evidencia real; no confundir comandos propuestos con comandos ejecutados.
+
+## Reglas de ejecución
+
+1. Para comportamiento no trivial: test que falla, implementación mínima y refactorización con tests verdes.
+2. Pruebas unitarias sin PostgreSQL, Pulsar, Docker ni red. Pruebas de integración separadas y obligatorias en su pipeline; no ocultar infraestructura ausente con skips que vuelvan verde la validación completa.
+3. Antes de cada commit o push solicitado: suite completa habilitada, lint y typecheck. No hacer commit o push por ejecutar estos planes.
+4. No compartir entidades ORM ni agregados entre módulos. Solo contratos explícitos e identificadores.
+5. Un evento entre contextos conserva semántica de integración aunque los contextos se desplieguen juntos. Para la demostración académica distinguir eventos del dominio de Solicitudes, reacción de Reglas mediante contrato interno y evento publicado a otros servicios; el transporte no determina por sí solo la categoría.
+6. Verificar documentación oficial y versiones reales al implementar cada integración. La selección de versiones exactas queda registrada en `uv.lock` durante el plan 01 y se extiende en planes posteriores.
+
+## Evidencia y referencias
+
+- Conversación de tutoriales: `codex://threads/01a096f0-75dc-7022-a3a7-17bb02184c4c`.
+- Conversación de POC: `codex://threads/01a096c6-b4ec-7542-941f-2090d6ab95b6`.
+- [Análisis de entrega 4](../../../analisis-critico-plan-poc-v2.md).
+- [Arquitectura de entrega 2](../../../../entrega2/hogar_alpes_entrega_2/README.md).
+- [Blueprint anterior](../../../../entrega3/hogar-de-los-alpes-servicio-dddesacoplados/docs/ai/02-blueprint-entrega-3.md).
+- [Flujo interno anterior](../../../../entrega3/hogar-de-los-alpes-servicio-dddesacoplados/docs/ai/08-plan-bloque-2.3.md).
+- NotebookLM del curso: `31f2c92a-9e81-4ca3-8d45-1ba9dbbb5ed1`. Usar sus respuestas para localizar fuentes; verificar inferencias en documentos originales. El notebook llamado Proyecto final corresponde a TravelHub y no fundamenta este servicio.
+
+## Acuerdos externos aún necesarios
+
+Los planes permiten avanzar localmente con fixtures explícitos. Antes de integrar, acordar con el equipo el payload y nombre públicos, tópico, versiones de Pulsar/esquema, identidad de partner y datos mínimos para crear un Trabajo. Antes del experimento grupal, acordar cobertura del marketplace y consumidores históricos de extensibilidad. Estos puntos no autorizan construir esos servicios en este repositorio.
