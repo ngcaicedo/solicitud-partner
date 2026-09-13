@@ -133,3 +133,32 @@ def test_caida_despues_de_enviar_antes_de_marcar(base: Database) -> None:
     base.engine.dispose()
     assert despacho.despachar_lote() == 1
     assert entregadas[0] == entregadas[1]
+
+
+def test_destinos_desconocidos_solo_bloquean_mientras_estan_pendientes(base: Database) -> None:
+    import pytest
+
+    from solicitudes_partner.config.persistencia import verificar_destinos
+
+    outbox = RepositorioOutbox(base.session_factory)
+    admitidos = ("reglas_partner.evaluar",)
+    assert not outbox.hay_pendientes_fuera_de(admitidos)
+    with crear_uow_solicitudes(base) as unidad:
+        unidad.registrar_salida(registro())
+        unidad.confirmar()
+    assert not outbox.hay_pendientes_fuera_de(admitidos)
+    verificar_destinos(base)
+    with base.engine.begin() as conexion:
+        conexion.execute(
+            update(SalidaSQL).values(
+                destino="laboratorio.anterior",
+                proximo_intento=func.clock_timestamp() + timedelta(hours=1),
+            )
+        )
+    assert outbox.hay_pendientes_fuera_de(admitidos)
+    with pytest.raises(ValueError, match="destinos pendientes desconocidos"):
+        verificar_destinos(base)
+    with base.engine.begin() as conexion:
+        conexion.execute(update(SalidaSQL).values(enviada_en=func.clock_timestamp()))
+    assert not outbox.hay_pendientes_fuera_de(admitidos)
+    verificar_destinos(base)

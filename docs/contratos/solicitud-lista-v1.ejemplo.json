@@ -1,0 +1,17 @@
+{
+  "event_id": "00000000-0000-0000-0000-00000000000f",
+  "tipo": "SolicitudDePartnerListaParaAtencion.v1",
+  "version_contrato": 1,
+  "instante": "2026-09-12T15:00:02+00:00",
+  "correlacion": "00000000-0000-0000-0000-000000000001",
+  "id_solicitud": "00000000-0000-0000-0000-000000000001",
+  "version_solicitud": 2,
+  "id_partner": "00000000-0000-0000-0000-000000000002",
+  "referencia_externa": "SIN-100",
+  "categoria": "plomeria",
+  "tipo_solicitud": "SINIESTRO",
+  "aprobacion_previa": true,
+  "tipo_red": "GENERAL_HDA",
+  "id_politica": "00000000-0000-0000-0000-000000000003",
+  "version_politica": 1
+}

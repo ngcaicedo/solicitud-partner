@@ -11,6 +11,6 @@ def test_migracion_crea_esquemas_y_coincide_con_orm(base: Database) -> None:
         inspect(base.engine).get_schema_names()
     )
     with base.engine.connect() as conexion:
-        assert conexion.scalar(text("SELECT version_num FROM alembic_version")) == "0001"
+        assert conexion.scalar(text("SELECT version_num FROM alembic_version")) == "0002"
         contexto = MigrationContext.configure(conexion, opts={"include_schemas": True})
         assert compare_metadata(contexto, metadata) == []

@@ -10,6 +10,7 @@ dependencies = [
     "sqlalchemy>=2.0,<2.1",
     "psycopg[binary]>=3.2,<4",
     "alembic>=1.16,<2",
+    "pulsar-client[avro]==3.13.0",
 ]
 
 [dependency-groups]
@@ -39,3 +40,11 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+
+[[tool.mypy.overrides]]
+module = ["pulsar", "pulsar.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "solicitudes_partner.modulos.solicitudes.infraestructura.esquemas.v1.eventos"
+disallow_subclassing_any = false

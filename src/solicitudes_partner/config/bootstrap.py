@@ -1,9 +1,19 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from uuid import uuid4
+
+from solicitudes_partner.config.rutas import DESTINOS_EXTERNOS, DESTINOS_INTERNOS
+from solicitudes_partner.config.serializacion import decodificar_evento
+from solicitudes_partner.seedwork.infraestructura.bus_eventos_local import BusEventosLocal
+from solicitudes_partner.seedwork.infraestructura.identificadores import IdentificadoresAleatorios
+from solicitudes_partner.seedwork.infraestructura.publicador_bus import PublicadorBus
+from solicitudes_partner.seedwork.infraestructura.reloj import RelojActual
 
 if TYPE_CHECKING:
     from solicitudes_partner.config.database import Database
+    from solicitudes_partner.config.settings import Settings
+    from solicitudes_partner.seedwork.infraestructura.despacho_outbox import DespachadorOutbox
 
 from solicitudes_partner.modulos.reglas_partner.aplicacion.handlers.evaluar_registro import (
     EvaluarRegistroHandler,
@@ -48,8 +58,8 @@ def componer_flujo(
         EvaluarRegistroHandler(crear_reglas, reloj, identificadores),
         AplicarResultadoEvaluacionHandler(crear_solicitudes, reloj, identificadores),
     )
-    bus.suscribir(SolicitudPartnerRegistrada, "reglas_partner.evaluar", flujo.evaluar)
-    bus.suscribir(ReglasDePartnerEvaluadas, "solicitudes.aplicar", flujo.aplicar)
+    bus.suscribir(SolicitudPartnerRegistrada, flujo.evaluar.consumidor, flujo.evaluar)
+    bus.suscribir(ReglasDePartnerEvaluadas, flujo.aplicar.consumidor, flujo.aplicar)
     return flujo
 
 
@@ -68,3 +78,45 @@ def componer_flujo_sql(
         identificadores,
         bus,
     )
+
+
+def componer_despacho_interno(base: "Database") -> "DespachadorOutbox":
+    from solicitudes_partner.seedwork.infraestructura.despacho_outbox import DespachadorOutbox
+    from solicitudes_partner.seedwork.infraestructura.outbox import RepositorioOutbox
+
+    bus = BusEventosLocal()
+    componer_flujo_sql(base, RelojActual(), IdentificadoresAleatorios(), bus)
+    return DespachadorOutbox(
+        RepositorioOutbox(base.session_factory, DESTINOS_INTERNOS),
+        PublicadorBus(bus, decodificar_evento),
+        f"interno-{uuid4()}",
+    )
+
+
+def componer_publicacion(
+    base: "Database", configuracion: "Settings"
+) -> tuple["DespachadorOutbox", Callable[[], None]]:
+    from pulsar.schema import AvroSchema
+
+    from solicitudes_partner.modulos.solicitudes.infraestructura.esquemas.v1.eventos import (
+        SolicitudListaV1,
+    )
+    from solicitudes_partner.modulos.solicitudes.infraestructura.mapeador_integracion import (
+        evento_integracion,
+    )
+    from solicitudes_partner.seedwork.infraestructura.despacho_outbox import DespachadorOutbox
+    from solicitudes_partner.seedwork.infraestructura.outbox import RepositorioOutbox
+    from solicitudes_partner.seedwork.infraestructura.publicador_pulsar import PublicadorPulsar
+
+    publicador = PublicadorPulsar(
+        configuracion.pulsar_url,
+        configuracion.topico_solicitudes,
+        AvroSchema(SolicitudListaV1),
+        lambda documento: evento_integracion(decodificar_evento(documento)),
+    )
+    despacho = DespachadorOutbox(
+        RepositorioOutbox(base.session_factory, DESTINOS_EXTERNOS),
+        publicador,
+        f"integracion-{uuid4()}",
+    )
+    return despacho, publicador.cerrar

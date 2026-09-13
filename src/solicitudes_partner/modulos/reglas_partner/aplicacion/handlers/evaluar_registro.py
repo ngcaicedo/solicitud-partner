@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import ClassVar
 
 from solicitudes_partner.modulos.reglas_partner.aplicacion.excepciones import ConflictoEvaluacion
 from solicitudes_partner.modulos.reglas_partner.aplicacion.unidad_trabajo import UnidadTrabajoReglas
@@ -14,6 +15,7 @@ from solicitudes_partner.seedwork.aplicacion.reloj import Reloj
 
 @dataclass(frozen=True)
 class EvaluarRegistroHandler:
+    consumidor: ClassVar[str] = "reglas_partner.evaluar"
     crear_unidad: Callable[[], UnidadTrabajoReglas]
     reloj: Reloj
     identificadores: GeneradorIdentificadores
@@ -25,10 +27,10 @@ class EvaluarRegistroHandler:
             if existente is not None:
                 if unidad.evaluaciones.obtener_origen(registro.id_solicitud) != registro:
                     raise ConflictoEvaluacion("La solicitud ya fue evaluada con otro registro")
-                if unidad.preparar_entrada("reglas_partner.evaluar", registro):
+                if unidad.preparar_entrada(self.consumidor, registro):
                     unidad.confirmar()
                 return
-            if not unidad.preparar_entrada("reglas_partner.evaluar", registro):
+            if not unidad.preparar_entrada(self.consumidor, registro):
                 return
             politica = unidad.politicas.obtener(registro.datos.id_partner)
             evaluacion = evaluar_solicitud(

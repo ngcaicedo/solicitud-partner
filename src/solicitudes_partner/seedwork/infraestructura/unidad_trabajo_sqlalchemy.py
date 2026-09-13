@@ -1,7 +1,6 @@
 from collections.abc import Callable, Sequence
 from types import TracebackType
 from typing import Self
-from uuid import UUID, uuid5
 
 from psycopg.errors import UniqueViolation
 from sqlalchemy.exc import IntegrityError
@@ -10,10 +9,8 @@ from sqlalchemy.orm import Session
 from solicitudes_partner.seedwork.aplicacion.excepciones import ColisionPersistencia
 from solicitudes_partner.seedwork.dominio.eventos import EventoDominio
 from solicitudes_partner.seedwork.infraestructura.inbox import preparar
-from solicitudes_partner.seedwork.infraestructura.outbox import SalidaSQL
+from solicitudes_partner.seedwork.infraestructura.outbox import RepositorioSalidasSQL
 from solicitudes_partner.seedwork.infraestructura.serializacion import Documento
-
-ESPACIO_ENTREGAS = UUID("1a25c434-73cb-4aaa-9ad6-54b0be792412")
 
 
 class UnidadTrabajoSQL:
@@ -85,20 +82,6 @@ class UnidadTrabajoSQL:
         return preparar(self.sesion, consumidor, evento.id_evento, self.serializar(evento))
 
     def registrar_salida(self, evento: EventoDominio) -> None:
-        documento = self.serializar(evento)
-        destinos = self.destinos(evento)
-        if (
-            not destinos
-            or len(set(destinos)) != len(destinos)
-            or any(not destino.strip() for destino in destinos)
-        ):
-            raise ValueError("Destinos de salida invalidos")
-        for destino in destinos:
-            self.sesion.add(
-                SalidaSQL(
-                    id=uuid5(ESPACIO_ENTREGAS, f"{evento.id_evento}:{destino}"),
-                    id_evento=evento.id_evento,
-                    destino=destino,
-                    documento=documento,
-                )
-            )
+        RepositorioSalidasSQL(self.sesion).guardar(
+            evento.id_evento, self.serializar(evento), self.destinos(evento)
+        )

@@ -12,7 +12,7 @@ Este plan incorpora H1–H6 de la [auditoría](auditoria-04-sqlalchemy-uow-outbo
 
 04 implementa migraciones, repositorios, UoW SQL, inbox, serialización durable y reclamación/confirmación del outbox. Se comprueba con PostgreSQL real y un puerto de publicación falso, avanzando explícitamente las entregas en las pruebas.
 
-05 conecta el worker automático y los consumidores a Pulsar, acuerda los contratos públicos y verifica acuses, suscripciones, reentregas y DLQ con el broker real. 06 conecta el registro HTTP y la proyección CQRS. No publicar directamente desde los handlers ni convertir el bus local en un worker de producción. No introducir Event Sourcing.
+05 automatiza la entrega durable hacia el bus interno y conecta el relay de integración a Pulsar, con contrato público definido por Entrada y pruebas de recuperación. El bus local sigue siendo el mecanismo de despacho en memoria; PostgreSQL conserva las entregas y el despachador verifica el éxito durable del handler. 06 conecta el registro HTTP y la proyección CQRS. No publicar directamente desde los handlers ni introducir Event Sourcing.
 
 ## Trabajo
 
@@ -77,7 +77,7 @@ Después de confirmar la reserva, publicar fuera de esa transacción. Marcar env
 
 Ejemplo obligatorio: A reserva y se detiene; vence su reserva; B toma la entrega con otro token; A vuelve tarde. A no puede marcarla enviada ni reprogramarla, porque ya no tiene la reserva vigente. B puede continuar. Una caída entre envío y marca permite un envío repetido con la misma identidad: inbox e idempotencia evitan repetir el efecto; no se promete exactly-once.
 
-En 04 se prueban reclamación y confirmación con PostgreSQL y acuses/fallos simulados. El worker continuo, acuse real y caída frente a Pulsar se completan en 05.
+En 04 se prueban reclamación y confirmación con PostgreSQL y acuses/fallos simulados. El arranque del despacho continuo desde `config/bootstrap.py`, el acuse real y la caída frente a Pulsar se completan en 05.
 
 ## Organización de archivos — H6
 

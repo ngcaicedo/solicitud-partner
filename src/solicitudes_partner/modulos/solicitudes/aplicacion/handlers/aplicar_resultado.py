@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import ClassVar
 
 from solicitudes_partner.modulos.reglas_partner.dominio.eventos import (
     ReglasDePartnerEvaluadas,
@@ -21,6 +22,7 @@ from solicitudes_partner.seedwork.aplicacion.reloj import Reloj
 
 @dataclass(frozen=True)
 class AplicarResultadoEvaluacionHandler:
+    consumidor: ClassVar[str] = "solicitudes.aplicar"
     crear_unidad: Callable[[], UnidadTrabajoSolicitudes]
     reloj: Reloj
     identificadores: GeneradorIdentificadores
@@ -50,7 +52,7 @@ class AplicarResultadoEvaluacionHandler:
                 id_evento=self.identificadores.generar(),
                 instante=self.reloj.ahora(),
             )
-            if not unidad.preparar_entrada("solicitudes.aplicar", evento):
+            if not unidad.preparar_entrada(self.consumidor, evento):
                 return
             salidas = solicitud.retirar_eventos()
             if not salidas:

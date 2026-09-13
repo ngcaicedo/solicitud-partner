@@ -21,7 +21,7 @@ from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import (
 )
 from solicitudes_partner.seedwork.dominio.eventos import EventoDominio
 from solicitudes_partner.seedwork.infraestructura.inbox import EntradaSQL
-from solicitudes_partner.seedwork.infraestructura.outbox import SalidaSQL
+from solicitudes_partner.seedwork.infraestructura.outbox import EventoSQL, SalidaSQL
 from tests.integracion.datos import flujo_sql
 from tests.unitarias.dominio.datos import datos_solicitud, politica
 
@@ -87,7 +87,10 @@ def test_recorrido_tres_transacciones_y_reinicio(
             else EstadoSolicitud.LISTA_PARA_ATENCION
         )
     with base.session_factory() as sesion:
-        assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == 3
+        assert sesion.scalar(select(func.count()).select_from(EventoSQL)) == 3
+        assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == (
+            2 if final.estado is EstadoSolicitud.RECHAZADA else 3
+        )
         assert sesion.scalar(select(func.count()).select_from(EntradaSQL)) == 2
         assert sesion.scalar(select(func.count()).select_from(EvaluacionSQL)) == 1
 
@@ -123,8 +126,11 @@ def test_flujo_cableado_con_outbox_y_bus_de_laboratorio(base: Database) -> None:
     from solicitudes_partner.seedwork.aplicacion.publicacion import Publicacion
     from solicitudes_partner.seedwork.infraestructura.bus_eventos_local import BusEventosLocal
     from solicitudes_partner.seedwork.infraestructura.despacho_outbox import DespachadorOutbox
+    from solicitudes_partner.seedwork.infraestructura.identificadores import (
+        IdentificadoresAleatorios,
+    )
     from solicitudes_partner.seedwork.infraestructura.outbox import RepositorioOutbox
-    from tests.integracion.datos import IdentificadoresAleatorios, RelojActual
+    from solicitudes_partner.seedwork.infraestructura.reloj import RelojActual
 
     bus = BusEventosLocal()
     terminales: list[SolicitudPartnerListaParaAtencion] = []

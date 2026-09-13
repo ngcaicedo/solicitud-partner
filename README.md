@@ -4,7 +4,7 @@ Microservicio de Entrada de Solicitudes de Partner de Hogar de los Alpes, para e
 
 ## Estado actual
 
-Los **planes 01–04 están implementados y verificados localmente**. El registro, la evaluación y la transición cuentan con repositorios SQL, tres UoW independientes, inbox y outbox en PostgreSQL. Las pruebas avanzan las entregas explícitamente mediante transporte de laboratorio; Pulsar automático y la API de negocio pertenecen a 05–06.
+Los **planes 01–05 están implementados y verificados localmente**. El flujo Solicitudes → Reglas → Solicitudes avanza automáticamente mediante bus interno, con tres UoW, inbox y outbox en PostgreSQL. Un despachador independiente publica `SolicitudDePartnerListaParaAtencion.v1` por Pulsar. API de negocio y CQRS corresponden al plan 06.
 
 | Componente | Estado |
 |---|---|
@@ -12,13 +12,13 @@ Los **planes 01–04 están implementados y verificados localmente**. El registr
 | FastAPI | Factoría de aplicación y `GET /health/live`. |
 | SQLAlchemy y psycopg | Factoría de Engine y sesiones independientes, sin conexión durante el arranque. |
 | Módulos y seedwork | Solicitud, política, evaluación, agregación raíz, eventos y puertos implementados. |
-| Verificación local | 203 pruebas aprobadas, incluidas 36 de integración con PostgreSQL; lint, formato, tipado y distribución comprobados. HTTP real verificado en 01. |
+| Verificación local | 223 pruebas aprobadas, incluidas 46 de integración con PostgreSQL/Pulsar; lint, formato, tipado y distribución comprobados. HTTP real verificado en 01. |
 | Contratos internos | Registro, evaluación, solicitud lista y rechazada, con versiones y datos inmutables. |
-| Handlers y bus local | Registro idempotente, evaluación inicial única, transición y despacho por consumidor comprobados con UoW en memoria y SQL; las entregas avanzan explícitamente en pruebas. |
+| Handlers y bus local | Registro idempotente, evaluación inicial única, transición y despacho por consumidor comprobados con UoW en memoria y SQL; el despacho durable ejecuta el handler antes de confirmar la entrega. |
 | Persistencia | PostgreSQL, Alembic, ORM/mapeadores, inbox y outbox con reservas recuperables. |
-| Pulsar y CQRS | Pendientes de 05–06. CQRS sigue siendo obligatorio. |
+| Pulsar | Publicación Avro v1, recuperación real y dos suscripciones independientes. CQRS pendiente de 06. |
 
-Los resultados corresponden a la corrida registrada del 12 de septiembre de 2026. [Evidencia del plan 01](docs/plans/evidencia-01-base-tecnologica.md) · [Evidencia del plan 02](docs/plans/evidencia-02-modelo-dominio-seedwork.md) · [Evidencia del plan 03](docs/plans/evidencia-03-comandos-eventos-internos.md) · [Evidencia del plan 04](docs/plans/evidencia-04-sqlalchemy-uow-outbox.md) · [Modelo de dominio](docs/modelo-dominio.md) · [Planes de construcción](docs/plans/README.md).
+Los resultados corresponden a la corrida registrada del 12 de septiembre de 2026. [Evidencia del plan 01](docs/plans/evidencia-01-base-tecnologica.md) · [Evidencia del plan 02](docs/plans/evidencia-02-modelo-dominio-seedwork.md) · [Evidencia del plan 03](docs/plans/evidencia-03-comandos-eventos-internos.md) · [Evidencia del plan 04](docs/plans/evidencia-04-sqlalchemy-uow-outbox.md) · [Evidencia del plan 05](docs/plans/evidencia-05-pulsar-contratos.md) · [Modelo de dominio](docs/modelo-dominio.md) · [Planes de construcción](docs/plans/README.md).
 
 ## Entorno
 
@@ -50,6 +50,8 @@ Respuesta predeterminada: HTTP 200 y `{"status":"ok","service":"solicitudes-part
 |---|---|---|
 | `PARTNER_SERVICE_NAME` | `solicitudes-partner` | Nombre que devuelve liveness. |
 | `PARTNER_DATABASE_URL` | Ausente o vacía | Sin Engine. Si existe, debe usar `postgresql+psycopg://`. |
+| `PARTNER_PULSAR_URL` | `pulsar://127.0.0.1:6650` | Broker para publicación externa. |
+| `PARTNER_PULSAR_TOPIC` | `persistent://public/default/solicitud-partner-lista-v1` | Tópico del contrato público v1. |
 
 `.env.example` enumera las variables, pero no se carga automáticamente. Exportarlas en la terminal o configurarlas en el entorno de ejecución. No guardar credenciales reales en archivos versionados.
 
@@ -60,7 +62,7 @@ Respuesta predeterminada: HTTP 200 y `{"status":"ok","service":"solicitudes-part
 El entorno de 04 usa PostgreSQL 17.6, SQLAlchemy 2.0.52, psycopg 3.3.5 y Alembic 1.20.0. Compose publica exclusivamente en `127.0.0.1:55434`, con volumen propio y credenciales de laboratorio. Las dependencias Python están fijadas en `uv.lock`.
 
 ```bash
-docker compose -f docker_compose.yaml up -d --wait
+docker compose -f docker-compose.yaml up -d --wait
 export PARTNER_DATABASE_URL='postgresql+psycopg://partner:partner_local@127.0.0.1:55434/partner'
 uv run --locked alembic upgrade head
 uv run --locked python scripts/cargar_politicas.py
@@ -75,11 +77,13 @@ uv run --locked python scripts/cargar_politicas.py --version 2 --red HOMOLOGADA_
 
 `--id-partner` y `--id-politica` permiten cargar otros ejemplos. Hay una fila de política vigente por partner; las evaluaciones conservan su resultado e identidad/versión originales, incluso después de sustituir esa fila. La carga es administrativa y explícita, sin endpoint nuevo.
 
-Los esquemas `solicitudes` y `reglas_partner` contienen tablas de sus módulos; `mensajeria` contiene inbox/outbox. `lectura` queda preparado y vacío para 06. Los datos compuestos y eventos se conservan en JSONB mediante mapeadores y formatos explícitos; identidad, referencia, estado y versión de solicitudes tienen columnas relacionales. El origen de evaluación se conserva separado del outbox. El modelo de dominio no es ORM.
+Los esquemas `solicitudes` y `reglas_partner` contienen tablas de sus módulos; `mensajeria` contiene inbox, outbox y `eventos`, un archivo de documentos completos confirmado en la misma transacción. El archivo conserva registro y rechazo para la futura proyección; no representa entregas pendientes ni Event Sourcing. `lectura` queda preparado y vacío para 06. Los datos compuestos y eventos se conservan en JSONB mediante mapeadores y formatos explícitos; identidad, referencia, estado y versión de solicitudes tienen columnas relacionales. El origen de evaluación se conserva separado del outbox. El modelo de dominio no es ORM.
 
-`config/bootstrap.py:componer_flujo_sql` conecta los handlers; `config/persistencia.py` construye las UoW y configura destinos `laboratorio.<tipo_evento>`. `config/serializacion.py` selecciona los codecs de infraestructura propietarios. Los codecs conservan UUID y fechas en UTC, validan el formato 1 y reconstruyen los cuatro eventos. Los tópicos y contratos públicos de Pulsar se acuerdan en 05.
+`config/bootstrap.py` compone los handlers y despachadores. `workers/despacho.py` administra los ciclos, el arranque y la parada. `config/rutas.py` centraliza las rutas `reglas_partner.evaluar`, `solicitudes.aplicar` e `integracion.solicitud_lista.v1`. El rechazo se archiva sin salida externa. No se crean consumidores Pulsar para comunicación entre los dos módulos.
 
-Cada entrega tiene identidad estable por evento/destino. `DespachadorOutbox.despachar_lote()` reserva un lote, llama al puerto `Publicador` fuera de la transacción de reserva y marca solo los acuses positivos. Un token vencido no permite actualizar la reserva de otro worker. El método ejecuta un lote a petición; todavía no existe un proceso continuo. `inspeccionar_outbox.py` muestra pendientes, antigüedad, intentos y errores sin modificar filas.
+Cada entrega tiene identidad estable por evento/destino. `DespachadorOutbox` reserva, llama al puerto `Publicador` fuera de la transacción y marca solo el éxito. La entrega interna espera el commit del handler; `send()` externo espera al broker. Ambos ciclos son independientes, secuenciales, de una entrega por lote, con pausa de 0,2 s, reserva de 30 s y reintento tras 5 s. El cliente limita conexión, operación y envío a 5 s por operación. Si cae el proceso, el siguiente recupera reservas vencidas y el inbox evita repetir efectos. Los timeouts no equivalen a ausencia de publicación.
+
+`inspeccionar_outbox.py` muestra pendientes, antigüedad, intentos y último error. Un documento inválido conserva su salida para intervención; puede detenerse el despachador mientras se corrige la causa. Los destinos antiguos desconocidos bloquean el arranque para exigir inspección; no se descartan automáticamente.
 
 Para observar el recorrido con PostgreSQL y bus de laboratorio:
 
@@ -90,14 +94,14 @@ uv run --locked pytest tests/integracion/test_flujo_sql.py -v
 Para detener el entorno preservando el volumen:
 
 ```bash
-docker compose -f docker_compose.yaml stop
+docker compose -f docker-compose.yaml stop
 ```
 
 ## Verificar
 
 ```bash
 uv sync --locked
-docker compose -f docker_compose.yaml up -d --wait
+docker compose -f docker-compose.yaml up -d --wait
 uv run --locked pytest tests -q
 uv run --locked ruff check .
 uv run --locked ruff format --check .
@@ -107,17 +111,37 @@ uv run --locked python scripts/verify_distribution.py
 
 El script de distribución crea un entorno temporal con dependencias de producción del lockfile, construye sdist y wheel, reinstala ese wheel sin resolver otras dependencias y lo importa desde fuera del árbol fuente con Python en modo aislado. Elimina sus archivos temporales al terminar. Para generar artefactos conservables en `dist/`, ejecutar `uv build`.
 
-La suite completa habilita `tests/unitarias`, `tests/api` y `tests/integracion`. Integración requiere PostgreSQL: crea una base temporal `partner_test_<uuid>`, aplica migraciones, limpia sus propias tablas entre casos y elimina esa base al terminar. El usuario SQL de pruebas necesita permiso de crear bases; nunca se truncan tablas de la base de desarrollo. `PARTNER_TEST_DATABASE_URL` permite cambiar la conexión administrativa de laboratorio; su valor predeterminado corresponde al Compose del repositorio. Si falta PostgreSQL, las pruebas fallan, sin skips. `tests/contratos` sigue sin casos y no representa cobertura de Pulsar. Las pruebas bloquean los puntos de conexión Python al verificar importación y lifespan; el cliente Pulsar nativo todavía no forma parte de la aplicación.
+La suite completa incluye pruebas unitarias, API, contratos Avro e integración. PostgreSQL usa bases temporales `partner_test_<uuid>` que se eliminan al finalizar; requiere permiso de crear bases. Pulsar usa tópicos únicos y consumidores con SQLite temporal. La prueba de caída detiene y reinicia **el servicio Pulsar de este Compose**; ejecutar en laboratorio local sin otros experimentos concurrentes. Si falta infraestructura, las pruebas fallan sin skips. `PARTNER_TEST_DATABASE_URL`, `PARTNER_TEST_PULSAR_URL` y `PARTNER_TEST_PULSAR_ADMIN_URL` permiten configurar conexiones; la prueba que controla Compose exige el broker local predeterminado.
 
 TestClient usa `httpx2`, requerido por la versión resuelta de Starlette; por ello sustituye al `httpx` inicialmente propuesto. Hay una advertencia visible de Starlette por el alias obsoleto `anyio.abc.BlockingPortal`. No se modifica código de terceros ni se suprime esa advertencia. Las deprecaciones originadas en el paquete propio hacen fallar pytest.
 
-## Compatibilidad preliminar Pulsar
+## Ejecutar el flujo y consumir el evento
+
+Preparar el tópico, retención y suscripciones siguiendo el [contrato público](docs/contratos/README.md). El cliente `pulsar-client[avro]` 3.13.0 forma parte del lockfile; el broker local es Pulsar 4.1.3, con volumen persistente y administración en `127.0.0.1:18086`.
+
+Con `PARTNER_DATABASE_URL` exportada en cada terminal, iniciar ambos despachadores:
 
 ```bash
-uv run --isolated --no-project --python 3.12.3 --with pulsar-client==3.13.0 python -c 'import importlib.metadata, platform, pulsar; print({"python": platform.python_version(), "system": platform.system(), "architecture": platform.machine(), "pulsar_client": importlib.metadata.version("pulsar-client"), "client_imported": callable(pulsar.Client)})'
+# Terminal 1
+uv run --locked python -m solicitudes_partner.workers.despacho interno
+# Terminal 2
+uv run --locked python -m solicitudes_partner.workers.despacho integracion
 ```
 
-Resultado local: Python 3.12.3, Linux x86_64, cliente 3.13.0 importado. Este ensayo usa un entorno independiente; Pulsar no es dependencia de producción y no se instancia un cliente ni se contacta un broker. En el plan 05 deben repetirse compatibilidad y ensayos de serialización/publicación/consumo con las versiones acordadas por el equipo.
+El arranque es explícito; importar módulos o ejecutar FastAPI no inicia los ciclos. Ctrl+C/SIGTERM solicita parada, espera la operación actual y cierra recursos. El worker reutiliza los despachadores; las reglas de entrega permanecen en infraestructura.
+
+Tras aplicar migraciones y cargar la política de laboratorio, en otra terminal:
+
+```bash
+uv run --locked python scripts/registrar_solicitud.py --referencia DEMO-05
+uv run --locked python scripts/consumir_eventos.py --suscripcion atencion --base /tmp/partner-atencion.db
+uv run --locked python scripts/consumir_eventos.py --suscripcion estadisticas --base /tmp/partner-estadisticas.db
+uv run --locked python scripts/inspeccionar_outbox.py
+```
+
+El registro solo confirma recepción. El despacho interno evalúa y cambia el estado; el externo publica. Cada consumidor persiste una fila en su propia tabla SQLite `recibidos`. Repetir la misma referencia y datos no crea otra solicitud; usar otra referencia para otro ensayo. `--aprobacion no` permite registrar un siniestro que terminará rechazado, sin publicación externa. Para instalación sin aprobación: `--tipo INSTALACION --aprobacion ausente`.
+
+Para probar una caída del consumidor después de persistir, agregar `--interrumpir-tras-commit`: termina con código 75 antes del ACK; al reiniciarlo con la misma suscripción/base reconoce el duplicado. La suite automatiza este caso y la caída tras publicación antes de marcar el outbox.
 
 ## Organización
 
@@ -125,6 +149,8 @@ Resultado local: Python 3.12.3, Linux x86_64, cliente 3.13.0 importado. Este ens
 src/solicitudes_partner/
   api/
     app.py
+  workers/
+    despacho.py
   config/
     settings.py
     database.py
@@ -163,8 +189,10 @@ Seedwork es local a este servicio y contiene las abstracciones utilizadas por lo
 
 ## Próximos incrementos
 
-El siguiente paso es el [plan 05: Pulsar y contratos](docs/plans/05-pulsar-contratos.md). Después se implementarán CQRS y experimentación, según la [secuencia acordada](docs/plans/README.md).
+El siguiente paso es el [plan 06: CQRS y API](docs/plans/06-cqrs-api.md). Siguen pendientes la recepción HTTP de negocio, proyecciones de recibidas/listas/rechazadas, experimentos de carga y despliegue compartido.
 
-El flujo completo se demuestra con `uv run --locked pytest tests/unitarias/aplicacion/test_flujo_interno.py -v`. Las pruebas avanzan explícitamente desde el registro confirmado hasta la evaluación y el resultado; incluyen reentregas y fallos antes y después de confirmar. Ese comando usa dobles, sin conexiones externas. La demostración SQL está en `tests/integracion/test_flujo_sql.py`.
+Entrada y una porción de Reglas cuentan como **un servicio** de la POC. Los consumidores SQLite son herramientas de laboratorio; Orquestación, Cotizaciones y Scoring empresariales quedan fuera de este repositorio. Standalone no acredita un clúster.
 
-Todavía no hay recepción de solicitudes por HTTP, transporte Pulsar automático, proyección CQRS ni experimentos de carga. El outbox SQL conserva los pendientes; el bus local sigue sin ser un transporte durable de producción. El publicador de pruebas simula el acuse, por lo que no demuestra recuperación del broker ni ACK real. Entrada y una porción de Reglas se agrupan explícitamente para la POC; sus dos módulos internos cuentan como **un servicio** dentro de los cuatro requeridos. Orquestación, Cotizaciones y Scoring quedan fuera de este repositorio.
+`RelojActual` e `IdentificadoresAleatorios` son adaptadores únicos en `seedwork/infraestructura/reloj.py` e `identificadores.py`; implementan los puertos de aplicación y se reutilizan en el servicio, scripts y pruebas SQL.
+
+La UoW delega el archivo de eventos y la creación de salidas a `RepositorioSalidasSQL`, que utiliza su misma sesión sin confirmar transacciones propias. El repositorio de despacho conserva sus transacciones cortas para reservas y acuses. `mapeadores.py` de Solicitudes contiene los mapeos SQL; `mapeador_integracion.py` transforma al contrato Avro. Importar persistencia SQL no carga Pulsar.

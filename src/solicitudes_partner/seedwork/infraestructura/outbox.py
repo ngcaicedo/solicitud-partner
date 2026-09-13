@@ -1,17 +1,24 @@
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import cast
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
-from sqlalchemy import DateTime, Index, UniqueConstraint, func, or_, select, update
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import DateTime, Index, UniqueConstraint, func, or_, select, true, update
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from solicitudes_partner.seedwork.aplicacion.publicacion import Publicacion
 from solicitudes_partner.seedwork.infraestructura.orm import BaseSQL
 from solicitudes_partner.seedwork.infraestructura.serializacion import Documento
+
+
+class EventoSQL(BaseSQL):
+    __tablename__ = "eventos"
+    __table_args__ = {"schema": "mensajeria"}
+    id_evento: Mapped[UUID] = mapped_column(primary_key=True)
+    documento: Mapped[Documento] = mapped_column(JSONB)
 
 
 class SalidaSQL(BaseSQL):
@@ -50,8 +57,11 @@ class Reserva:
 
 
 class RepositorioOutbox:
-    def __init__(self, crear_sesion: Callable[[], Session]) -> None:
+    def __init__(
+        self, crear_sesion: Callable[[], Session], destinos: tuple[str, ...] | None = None
+    ) -> None:
         self.crear_sesion = crear_sesion
+        self.destinos = destinos
 
     def reclamar(self, propietario: str, limite: int, duracion: timedelta) -> list[Reserva]:
         if not propietario.strip() or limite <= 0 or duracion.total_seconds() <= 0:
@@ -62,6 +72,7 @@ class RepositorioOutbox:
                 select(SalidaSQL)
                 .where(
                     SalidaSQL.enviada_en.is_(None),
+                    SalidaSQL.destino.in_(self.destinos) if self.destinos is not None else true(),
                     SalidaSQL.proximo_intento <= ahora,
                     or_(SalidaSQL.vence_en.is_(None), SalidaSQL.vence_en <= ahora),
                 )
@@ -129,6 +140,18 @@ class RepositorioOutbox:
             )
             return identidad is not None
 
+    def hay_pendientes_fuera_de(self, destinos_admitidos: tuple[str, ...]) -> bool:
+        with self.crear_sesion() as sesion:
+            pendiente = sesion.scalar(
+                select(SalidaSQL.id)
+                .where(
+                    SalidaSQL.enviada_en.is_(None),
+                    SalidaSQL.destino.not_in(destinos_admitidos),
+                )
+                .limit(1)
+            )
+            return pendiente is not None
+
     def inspeccionar(self, limite: int = 100) -> list[Documento]:
         if limite <= 0:
             raise ValueError("Limite invalido")
@@ -164,4 +187,37 @@ class RepositorioOutbox:
             return dict(
                 pendientes=cantidad,
                 antiguedad_segundos=(ahora - primera).total_seconds() if primera else 0,
+            )
+
+
+ESPACIO_ENTREGAS = UUID("1a25c434-73cb-4aaa-9ad6-54b0be792412")
+
+
+class RepositorioSalidasSQL:
+    def __init__(self, sesion: Session) -> None:
+        self.sesion = sesion
+
+    def guardar(self, id_evento: UUID, documento: Documento, destinos: Sequence[str]) -> None:
+        if len(set(destinos)) != len(destinos) or any(not destino.strip() for destino in destinos):
+            raise ValueError("Destinos de salida invalidos")
+        nuevo = self.sesion.scalar(
+            insert(EventoSQL)
+            .values(id_evento=id_evento, documento=documento)
+            .on_conflict_do_nothing(index_elements=[EventoSQL.id_evento])
+            .returning(EventoSQL.id_evento)
+        )
+        if nuevo is None:
+            anterior = self.sesion.scalar(
+                select(EventoSQL.documento).where(EventoSQL.id_evento == id_evento)
+            )
+            if anterior != documento:
+                raise ValueError("El evento archivado ya tiene otro contenido")
+        for destino in destinos:
+            self.sesion.add(
+                SalidaSQL(
+                    id=uuid5(ESPACIO_ENTREGAS, f"{id_evento}:{destino}"),
+                    id_evento=id_evento,
+                    destino=destino,
+                    documento=documento,
+                )
             )

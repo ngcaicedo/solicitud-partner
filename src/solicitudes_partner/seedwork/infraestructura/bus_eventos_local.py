@@ -67,3 +67,15 @@ class BusEventosLocal:
         finally:
             self._despachando = False
         return True
+
+    def entregar(self, evento: EventoDominio, consumidor: str) -> None:
+        if self._despachando:
+            raise RuntimeError("No se permite despacho recursivo")
+        manejador = self._suscripciones.get(type(evento), {}).get(consumidor)
+        if manejador is None:
+            raise ValueError("No hay suscriptor para la entrega interna")
+        self._despachando = True
+        try:
+            manejador(evento)
+        finally:
+            self._despachando = False
