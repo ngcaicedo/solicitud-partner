@@ -11,15 +11,16 @@ DESTINOS_INTERNOS = (
     AplicarResultadoEvaluacionHandler.consumidor,
 )
 DESTINOS_EXTERNOS = ("integracion.solicitud_lista.v1",)
-DESTINOS_ADMITIDOS = DESTINOS_INTERNOS + DESTINOS_EXTERNOS
+DESTINOS_CQRS = ("cqrs.solicitud.v1",)
+DESTINOS_ADMITIDOS = DESTINOS_INTERNOS + DESTINOS_EXTERNOS + DESTINOS_CQRS
 
 
 def destinos_evento(evento: EventoDominio) -> tuple[str, ...]:
     rutas = {
-        "SolicitudPartnerRegistrada": (EvaluarRegistroHandler.consumidor,),
+        "SolicitudPartnerRegistrada": (EvaluarRegistroHandler.consumidor,) + DESTINOS_CQRS,
         "ReglasDePartnerEvaluadas": (AplicarResultadoEvaluacionHandler.consumidor,),
-        "SolicitudPartnerListaParaAtencion": DESTINOS_EXTERNOS,
-        "SolicitudPartnerRechazada": (),
+        "SolicitudPartnerListaParaAtencion": DESTINOS_EXTERNOS + DESTINOS_CQRS,
+        "SolicitudPartnerRechazada": DESTINOS_CQRS,
     }
     try:
         return rutas[type(evento).__name__]

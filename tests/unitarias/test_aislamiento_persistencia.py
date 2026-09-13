@@ -14,6 +14,12 @@ class BloquearPulsar(importlib.abc.MetaPathFinder):
 
 sys.meta_path.insert(0, BloquearPulsar())
 from solicitudes_partner.config.persistencia import crear_uow_solicitudes, crear_uow_reglas
+from solicitudes_partner.modulos.solicitudes.infraestructura.repositorios import (
+    RepositorioLecturaSQL, RepositorioProyeccionSQL,
+)
+from solicitudes_partner.modulos.solicitudes.infraestructura.proyecciones import (
+    ProyectorSolicitudes,
+)
 """
     resultado = subprocess.run(
         [sys.executable, "-I", "-c", codigo], capture_output=True, text=True, timeout=10

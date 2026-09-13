@@ -1,13 +1,13 @@
 # Plan de construcción — Entrada de Solicitudes de Partner
 
-Fecha: 2026-09-12. Estado: planes 01–05 implementados y verificados localmente. Planes 06–08 pendientes. [Evidencia del plan 01](evidencia-01-base-tecnologica.md) · [Evidencia del plan 02](evidencia-02-modelo-dominio-seedwork.md) · [Evidencia del plan 03](evidencia-03-comandos-eventos-internos.md) · [Evidencia del plan 04](evidencia-04-sqlalchemy-uow-outbox.md) · [Evidencia del plan 05](evidencia-05-pulsar-contratos.md).
+Fecha: 2026-09-12. Estado: planes 01–06 implementados y verificados localmente. Planes 07–08 pendientes. [Evidencia del plan 01](evidencia-01-base-tecnologica.md) · [Evidencia del plan 02](evidencia-02-modelo-dominio-seedwork.md) · [Evidencia del plan 03](evidencia-03-comandos-eventos-internos.md) · [Evidencia del plan 04](evidencia-04-sqlalchemy-uow-outbox.md) · [Evidencia del plan 05](evidencia-05-pulsar-contratos.md) · [Evidencia del plan 06](evidencia-06-cqrs-api.md).
 
 ## Acuerdos que gobiernan la implementación
 
 - Construcción desde cero en esta carpeta; entrega 3 es referencia histórica.
 - Dominio de negocio: Atención de solicitudes de partner B2B2C.
 - Un servicio desplegable con dos módulos: Solicitudes de Partner y Reglas de Partner. Cada módulo tiene Aplicación, Dominio e Infraestructura, siguiendo la organización de los tutoriales de AeroAlpes.
-- Seedwork local, arquitectura hexagonal, DDD táctico, CQRS obligatorio y comunicación por eventos. Solicitudes y Reglas usan el bus interno con entrega durable; Pulsar transporta el evento público hacia consumidores externos independientes. El transporte separado del proyector se concreta en 06.
+- Seedwork local, arquitectura hexagonal, DDD táctico, CQRS obligatorio y comunicación por eventos. Solicitudes y Reglas usan el bus interno con entrega durable; Pulsar transporta el evento público hacia consumidores externos independientes. El proyector separado de 06 consume un tópico CQRS propio con registro y estados finales.
 - La POC pequeña prueba recuperación, extensibilidad y escala de consumidores; no exige construir todo el ciclo de un Trabajo. Los reportes distinguen esos mecanismos de la funcionalidad empresarial y cobertura de escenarios originales.
 - Agrupación de POC aprobada por Nicolás: Entrada y una porción de Reglas se despliegan juntas. La entrega 2 sí las describía como servicios independientes: esta agrupación es una adaptación explícita, no una propiedad ya existente del TO-BE.
 - Las carpetas `dominio/` representan capas de modelo de negocio, no nuevos dominios empresariales. CQRS tampoco constituye un dominio adicional.

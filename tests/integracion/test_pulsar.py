@@ -18,6 +18,7 @@ from sqlalchemy import func, select, update
 
 from solicitudes_partner.config.database import Database
 from solicitudes_partner.config.persistencia import crear_uow_reglas, crear_uow_solicitudes
+from solicitudes_partner.config.procesamiento import iniciar_despacho_interno, iniciar_publicacion
 from solicitudes_partner.config.serializacion import decodificar_evento
 from solicitudes_partner.config.settings import Settings
 from solicitudes_partner.modulos.solicitudes.aplicacion.comandos import RegistrarSolicitudPartner
@@ -25,13 +26,12 @@ from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import Estado
 from solicitudes_partner.modulos.solicitudes.infraestructura.esquemas.v1.eventos import (
     SolicitudListaV1,
 )
-from solicitudes_partner.modulos.solicitudes.infraestructura.mapeador_integracion import (
+from solicitudes_partner.modulos.solicitudes.infraestructura.mapeadores_eventos import (
     evento_integracion,
 )
 from solicitudes_partner.seedwork.infraestructura.despacho_outbox import DespachadorOutbox
 from solicitudes_partner.seedwork.infraestructura.outbox import RepositorioOutbox, SalidaSQL
 from solicitudes_partner.seedwork.infraestructura.publicador_pulsar import PublicadorPulsar
-from solicitudes_partner.workers.despacho import iniciar_despacho_interno, iniciar_publicacion
 from tests.integracion.datos import flujo_sql
 from tests.unitarias.dominio.datos import datos_solicitud, politica
 
@@ -59,21 +59,29 @@ def transporte() -> Iterator[tuple[Any, Settings]]:
         cliente.close()
         pytest.fail("Pulsar requerido: docker compose up -d --wait pulsar", pytrace=False)
     try:
-        yield cliente, Settings(pulsar_url=url, topico_solicitudes=topico)
+        yield (
+            cliente,
+            Settings(pulsar_url=url, topico_solicitudes=topico, topico_lectura=topico + "-lectura"),
+        )
     finally:
         cliente.close()
         import urllib.request
 
         admin = os.getenv("PARTNER_TEST_PULSAR_ADMIN_URL", "http://127.0.0.1:18086")
-        peticion = urllib.request.Request(
-            admin
-            + "/admin/v2/persistent/public/default/"
-            + topico.rsplit("/", 1)[1]
-            + "?force=true",
-            method="DELETE",
-        )
-        with urllib.request.urlopen(peticion, timeout=5):
-            pass
+        for nombre_topico in (topico, topico + "-lectura"):
+            peticion = urllib.request.Request(
+                admin
+                + "/admin/v2/persistent/public/default/"
+                + nombre_topico.rsplit("/", 1)[1]
+                + "?force=true",
+                method="DELETE",
+            )
+            try:
+                with urllib.request.urlopen(peticion, timeout=5):
+                    pass
+            except urllib.error.HTTPError as error:
+                if error.code != 404:
+                    raise
 
 
 def cantidad(archivo: Path) -> int:
@@ -129,7 +137,7 @@ def test_automatico_dos_suscripciones_y_reinicio_tras_commit(
         tardia = consumir(configuracion, "estadisticas", tmp_path / "estadisticas.db")
         assert tardia.returncode == 0, tardia.stderr
         assert cantidad(tmp_path / "estadisticas.db") == 1
-        esperar(lambda: RepositorioOutbox(base.session_factory).metricas()["pendientes"] == 0)
+        esperar(lambda: RepositorioOutbox(base.session_factory).metricas()["pendientes"] == 2)
     finally:
         interno.detener()
         externo.detener()
@@ -217,6 +225,20 @@ def test_broker_detenido_no_bloquea_flujo_interno(
     with crear_uow_reglas(base) as unidad:
         unidad.politicas.guardar(politica())
         unidad.confirmar()
+    from solicitudes_partner.config.bootstrap import componer_proyeccion
+    from solicitudes_partner.config.procesamiento import (
+        iniciar_proyeccion,
+        iniciar_publicacion_cqrs,
+    )
+    from solicitudes_partner.modulos.solicitudes.infraestructura.repositorios import (
+        RepositorioLecturaSQL,
+    )
+
+    preparacion = componer_proyeccion(base, configuracion)
+    preparacion.abrir()
+    preparacion.cerrar()
+    cqrs = iniciar_publicacion_cqrs(base, configuracion)
+    proyeccion = iniciar_proyeccion(base, configuracion)
     interno = iniciar_despacho_interno(base, pausa=0.02)
     externo = iniciar_publicacion(base, configuracion)
     try:
@@ -246,7 +268,7 @@ def test_broker_detenido_no_bloquea_flujo_interno(
                 )
 
         esperar(terminadas)
-        assert RepositorioOutbox(base.session_factory).metricas()["pendientes"] == 1
+        esperar(lambda: RepositorioOutbox(base.session_factory).metricas()["pendientes"] == 5)
         subprocess.run(
             ["docker", "compose", "up", "-d", "--wait", "pulsar"],
             cwd=RAIZ,
@@ -258,9 +280,21 @@ def test_broker_detenido_no_bloquea_flujo_interno(
         assert resultado.returncode == 0, resultado.stderr
         esperar(lambda: RepositorioOutbox(base.session_factory).metricas()["pendientes"] == 0)
         assert cantidad(tmp_path / "recuperacion.db") == 1
+        lectura = RepositorioLecturaSQL(base.session_factory)
+        esperar(
+            lambda: (
+                {vista.estado for vista in lectura.listar(datos_solicitud().id_partner, 20, 0)}
+                == {
+                    EstadoSolicitud.LISTA_PARA_ATENCION,
+                    EstadoSolicitud.RECHAZADA,
+                }
+            )
+        )
     finally:
         interno.detener()
         externo.detener()
+        cqrs.detener()
+        proyeccion.detener()
         subprocess.run(
             ["docker", "compose", "up", "-d", "--wait", "pulsar"],
             cwd=RAIZ,

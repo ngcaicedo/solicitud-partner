@@ -1,0 +1,19 @@
+{
+  "event_id": "00000000-0000-0000-0000-00000000000a",
+  "tipo": "SolicitudDePartnerActualizada.v1",
+  "version_contrato": 1,
+  "id_solicitud": "00000000-0000-0000-0000-000000000001",
+  "id_partner": "00000000-0000-0000-0000-000000000002",
+  "referencia_externa": "SIN-100",
+  "categoria": "plomeria",
+  "tipo_solicitud": "SINIESTRO",
+  "estado": "RECIBIDA",
+  "version_solicitud": 1,
+  "creada_en": "2026-09-12T15:00:00+00:00",
+  "actualizada_en": "2026-09-12T15:00:00+00:00",
+  "resultado": null,
+  "motivo": null,
+  "tipo_red": null,
+  "id_politica": null,
+  "version_politica": null
+}

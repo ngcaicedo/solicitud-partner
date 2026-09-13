@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from unittest.mock import Mock
 
 import pytest
@@ -6,6 +8,11 @@ from fastapi.testclient import TestClient
 from solicitudes_partner.api.app import create_app, get_settings
 from solicitudes_partner.config.database import Database
 from solicitudes_partner.config.settings import Settings
+
+
+@asynccontextmanager
+async def sin_procesamiento(base: Database, settings: Settings) -> AsyncIterator[None]:
+    yield
 
 
 def test_liveness_without_infrastructure() -> None:
@@ -34,7 +41,9 @@ def test_overrides_are_scoped_to_each_application() -> None:
 def test_owned_database_is_closed_even_on_error(raise_error: bool) -> None:
     database = Mock(spec=Database)
     factory = Mock(return_value=database)
-    application = create_app(Settings(database_url="postgresql+psycopg://test"), factory)
+    application = create_app(
+        Settings(database_url="postgresql+psycopg://test"), factory, sin_procesamiento
+    )
 
     def exercise_lifespan() -> None:
         with TestClient(application) as client:
@@ -58,8 +67,8 @@ def test_database_resources_are_not_shared_between_applications() -> None:
     second_database = Mock(spec=Database)
     factory = Mock(side_effect=[first_database, second_database])
     settings = Settings(database_url="postgresql+psycopg://test")
-    first_app = create_app(settings, factory)
-    second_app = create_app(settings, factory)
+    first_app = create_app(settings, factory, sin_procesamiento)
+    second_app = create_app(settings, factory, sin_procesamiento)
     with TestClient(first_app), TestClient(second_app):
         assert first_app.state.database is first_database
         assert second_app.state.database is second_database

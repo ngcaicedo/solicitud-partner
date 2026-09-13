@@ -26,6 +26,10 @@ with patch.object(socket.socket, 'connect', prohibir_conexion):
     from solicitudes_partner.modulos.solicitudes.dominio.repositorios import RepositorioSolicitudes
     from solicitudes_partner.modulos.reglas_partner.dominio import repositorios
     from solicitudes_partner.seedwork.aplicacion.unidad_trabajo import UnidadTrabajo
+    from solicitudes_partner.modulos.solicitudes.aplicacion.handlers.consultar_solicitudes import (
+        ConsultarSolicitudHandler,
+    )
+    from solicitudes_partner.modulos.solicitudes.aplicacion.vistas import VistaSolicitud
     from solicitudes_partner.config.bootstrap import componer_flujo
     from solicitudes_partner.seedwork.infraestructura.bus_eventos_local import BusEventosLocal
 """

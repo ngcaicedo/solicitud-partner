@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from solicitudes_partner.config.serializacion import decodificar_evento, serializar_evento
-from solicitudes_partner.modulos.solicitudes.infraestructura.mapeador_integracion import (
+from solicitudes_partner.modulos.solicitudes.infraestructura.mapeadores_eventos import (
     evento_integracion,
 )
 from solicitudes_partner.seedwork.aplicacion.publicacion import Publicacion

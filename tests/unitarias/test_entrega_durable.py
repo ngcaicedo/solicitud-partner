@@ -48,5 +48,5 @@ def test_entrega_sin_suscriptor_o_con_error_no_se_confirma() -> None:
 
 
 def test_rutas_internas_no_son_topicos() -> None:
-    assert destinos_evento(registro()) == ("reglas_partner.evaluar",)
+    assert destinos_evento(registro()) == ("reglas_partner.evaluar", "cqrs.solicitud.v1")
     assert destinos_evento(resultado()) == ("solicitudes.aplicar",)

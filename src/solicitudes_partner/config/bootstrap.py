@@ -13,6 +13,13 @@ from solicitudes_partner.seedwork.infraestructura.reloj import RelojActual
 if TYPE_CHECKING:
     from solicitudes_partner.config.database import Database
     from solicitudes_partner.config.settings import Settings
+    from solicitudes_partner.modulos.solicitudes.aplicacion.handlers.consultar_solicitudes import (
+        ConsultarSolicitudHandler,
+        ListarSolicitudesHandler,
+    )
+    from solicitudes_partner.modulos.solicitudes.infraestructura.consumidor_proyeccion import (
+        ConsumidorProyeccion,
+    )
     from solicitudes_partner.seedwork.infraestructura.despacho_outbox import DespachadorOutbox
 
 from solicitudes_partner.modulos.reglas_partner.aplicacion.handlers.evaluar_registro import (
@@ -101,7 +108,7 @@ def componer_publicacion(
     from solicitudes_partner.modulos.solicitudes.infraestructura.esquemas.v1.eventos import (
         SolicitudListaV1,
     )
-    from solicitudes_partner.modulos.solicitudes.infraestructura.mapeador_integracion import (
+    from solicitudes_partner.modulos.solicitudes.infraestructura.mapeadores_eventos import (
         evento_integracion,
     )
     from solicitudes_partner.seedwork.infraestructura.despacho_outbox import DespachadorOutbox
@@ -120,3 +127,76 @@ def componer_publicacion(
         f"integracion-{uuid4()}",
     )
     return despacho, publicador.cerrar
+
+
+def componer_registro(base: "Database") -> RegistrarSolicitudHandler:
+    from solicitudes_partner.config.persistencia import crear_uow_solicitudes
+
+    return RegistrarSolicitudHandler(
+        lambda: crear_uow_solicitudes(base), RelojActual(), IdentificadoresAleatorios()
+    )
+
+
+def componer_consulta(base: "Database") -> "ConsultarSolicitudHandler":
+    from solicitudes_partner.modulos.solicitudes.aplicacion.handlers.consultar_solicitudes import (
+        ConsultarSolicitudHandler,
+    )
+    from solicitudes_partner.modulos.solicitudes.infraestructura.repositorios import (
+        RepositorioLecturaSQL,
+    )
+
+    return ConsultarSolicitudHandler(RepositorioLecturaSQL(base.session_factory))
+
+
+def componer_listado(base: "Database") -> "ListarSolicitudesHandler":
+    from solicitudes_partner.modulos.solicitudes.aplicacion.handlers.consultar_solicitudes import (
+        ListarSolicitudesHandler,
+    )
+    from solicitudes_partner.modulos.solicitudes.infraestructura.repositorios import (
+        RepositorioLecturaSQL,
+    )
+
+    return ListarSolicitudesHandler(RepositorioLecturaSQL(base.session_factory))
+
+
+def componer_publicacion_cqrs(
+    base: "Database", configuracion: "Settings"
+) -> tuple["DespachadorOutbox", Callable[[], None]]:
+    from pulsar.schema import AvroSchema
+
+    from solicitudes_partner.config.rutas import DESTINOS_CQRS
+    from solicitudes_partner.modulos.solicitudes.infraestructura.esquemas.v1.lectura import (
+        SolicitudLecturaV1,
+    )
+    from solicitudes_partner.modulos.solicitudes.infraestructura.mapeadores_eventos import (
+        mensaje_lectura,
+    )
+    from solicitudes_partner.seedwork.infraestructura.despacho_outbox import DespachadorOutbox
+    from solicitudes_partner.seedwork.infraestructura.outbox import RepositorioOutbox
+    from solicitudes_partner.seedwork.infraestructura.publicador_pulsar import PublicadorPulsar
+
+    publicador = PublicadorPulsar(
+        configuracion.pulsar_url,
+        configuracion.topico_lectura,
+        AvroSchema(SolicitudLecturaV1),
+        mensaje_lectura,
+    )
+    return DespachadorOutbox(
+        RepositorioOutbox(base.session_factory, DESTINOS_CQRS), publicador, f"cqrs-{uuid4()}"
+    ), publicador.cerrar
+
+
+def componer_proyeccion(base: "Database", configuracion: "Settings") -> "ConsumidorProyeccion":
+    from solicitudes_partner.modulos.solicitudes.infraestructura.consumidor_proyeccion import (
+        ConsumidorProyeccion,
+    )
+    from solicitudes_partner.modulos.solicitudes.infraestructura.proyecciones import (
+        ProyectorSolicitudes,
+    )
+
+    return ConsumidorProyeccion(
+        configuracion.pulsar_url,
+        configuracion.topico_lectura,
+        configuracion.suscripcion_lectura,
+        ProyectorSolicitudes(base.session_factory),
+    )

@@ -38,7 +38,7 @@ def test_flujo_interno_archiva_sin_depender_del_broker(base: Database, aprobacio
         )
     with base.session_factory() as sesion:
         assert sesion.scalar(select(func.count()).select_from(EventoSQL)) == 3
-    assert RepositorioOutbox(base.session_factory).metricas()["pendientes"] == int(aprobacion)
+    assert RepositorioOutbox(base.session_factory).metricas()["pendientes"] == 2 + int(aprobacion)
 
 
 def test_reinicio_tras_commit_antes_de_marcar_no_repite_efecto(base: Database) -> None:
@@ -68,13 +68,13 @@ def test_fallo_sin_handler_conserva_pendiente(base: Database) -> None:
     from solicitudes_partner.seedwork.infraestructura.publicador_bus import PublicadorBus
 
     flujo_sql(base).registrar(RegistrarSolicitudPartner(datos=datos_solicitud()))
-    outbox = RepositorioOutbox(base.session_factory)
+    outbox = RepositorioOutbox(base.session_factory, ("reglas_partner.evaluar",))
     despacho = DespachadorOutbox(
         outbox, PublicadorBus(BusEventosLocal(), decodificar_evento), "prueba"
     )
     assert despacho.despachar_lote(1) == 0
-    assert outbox.metricas()["pendientes"] == 1
-    assert "suscriptor" in outbox.inspeccionar()[0]["ultimo_error"]
+    assert outbox.metricas()["pendientes"] == 2
+    assert any("suscriptor" in (salida["ultimo_error"] or "") for salida in outbox.inspeccionar())
 
 
 def test_archivo_revierte_con_la_unidad_de_trabajo(base: Database) -> None:
@@ -93,5 +93,5 @@ def test_documento_invalido_no_se_confirma(base: Database) -> None:
         conexion.execute(update(SalidaSQL).values(documento={"tipo": "desconocido"}))
     despacho = componer_despacho_interno(base)
     assert despacho.despachar_lote(1) == 0
-    assert despacho.outbox.metricas()["pendientes"] == 1
-    assert despacho.outbox.inspeccionar()[0]["ultimo_error"]
+    assert despacho.outbox.metricas()["pendientes"] == 2
+    assert any(salida["ultimo_error"] for salida in despacho.outbox.inspeccionar())

@@ -11,6 +11,7 @@ dependencies = [
     "psycopg[binary]>=3.2,<4",
     "alembic>=1.16,<2",
     "pulsar-client[avro]==3.13.0",
+    "pydantic>=2,<3",
 ]
 
 [dependency-groups]
@@ -46,5 +47,5 @@ module = ["pulsar", "pulsar.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "solicitudes_partner.modulos.solicitudes.infraestructura.esquemas.v1.eventos"
+module = "solicitudes_partner.modulos.solicitudes.infraestructura.esquemas.v1.*"
 disallow_subclassing_any = false

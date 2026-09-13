@@ -7,10 +7,10 @@ from solicitudes_partner.modulos.reglas_partner.infraestructura.unidad_trabajo i
 from solicitudes_partner.modulos.solicitudes.infraestructura.unidad_trabajo import (
     UnidadTrabajoSolicitudesSQL,
 )
-from solicitudes_partner.seedwork.infraestructura.orm import BaseSQL
+from solicitudes_partner.modulos.solicitudes.infraestructura.vistas import VistaSolicitudSQL
 from solicitudes_partner.seedwork.infraestructura.outbox import RepositorioOutbox
 
-metadata = BaseSQL.metadata
+metadata = VistaSolicitudSQL.metadata
 
 
 def crear_uow_solicitudes(base: Database) -> UnidadTrabajoSolicitudesSQL:

@@ -62,7 +62,7 @@ def test_registros_concurrentes_equivalentes(base: Database) -> None:
     assert confirmaciones[0] == confirmaciones[1]
     with base.session_factory() as sesion:
         assert sesion.scalar(select(func.count()).select_from(SolicitudSQL)) == 1
-        assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == 1
+        assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == 2
 
 
 @contextmanager
@@ -100,7 +100,7 @@ def test_registros_concurrentes_conflictivos(base: Database) -> None:
                     conflictos += 1
     assert exitos == conflictos == 1
     with base.session_factory() as sesion:
-        assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == 1
+        assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == 2
 
 
 def test_consumidores_concurrentes_no_duplican_efectos(base: Database) -> None:
@@ -121,7 +121,7 @@ def test_consumidores_concurrentes_no_duplican_efectos(base: Database) -> None:
             assert list(ejecutor.map(flujo.aplicar, [evaluacion, evaluacion])) == [None, None]
     with base.session_factory() as sesion:
         assert sesion.scalar(select(func.count()).select_from(EvaluacionSQL)) == 1
-        assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == 3
+        assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == 5
 
 
 def test_version_obsoleta_falla_sin_salida_del_perdedor(base: Database) -> None:
@@ -152,4 +152,4 @@ def test_version_obsoleta_falla_sin_salida_del_perdedor(base: Database) -> None:
             segunda.solicitudes.guardar(obsoleta)
             segunda.confirmar()
     with base.session_factory() as sesion:
-        assert list(sesion.scalars(select(SalidaSQL.id_evento))) == [UUID(int=80)]
+        assert list(sesion.scalars(select(SalidaSQL.id_evento))) == [UUID(int=80), UUID(int=80)]

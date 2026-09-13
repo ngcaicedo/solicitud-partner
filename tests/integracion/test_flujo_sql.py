@@ -89,7 +89,7 @@ def test_recorrido_tres_transacciones_y_reinicio(
     with base.session_factory() as sesion:
         assert sesion.scalar(select(func.count()).select_from(EventoSQL)) == 3
         assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == (
-            2 if final.estado is EstadoSolicitud.RECHAZADA else 3
+            4 if final.estado is EstadoSolicitud.RECHAZADA else 5
         )
         assert sesion.scalar(select(func.count()).select_from(EntradaSQL)) == 2
         assert sesion.scalar(select(func.count()).select_from(EvaluacionSQL)) == 1
@@ -105,7 +105,7 @@ def test_politica_ausente_permite_recuperar_sin_nuevo_registro(base: Database) -
     with base.session_factory() as sesion:
         assert sesion.scalar(select(func.count()).select_from(EntradaSQL)) == 0
         assert sesion.scalar(select(func.count()).select_from(EvaluacionSQL)) == 0
-        assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == 1
+        assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == 2
     with crear_uow_reglas(base) as unidad:
         unidad.politicas.guardar(politica())
         unidad.confirmar()
@@ -145,7 +145,10 @@ def test_flujo_cableado_con_outbox_y_bus_de_laboratorio(base: Database) -> None:
             bus.publicar(decodificar_evento(publicacion.documento))
             return True
 
-    outbox = RepositorioOutbox(base.session_factory)
+    outbox = RepositorioOutbox(
+        base.session_factory,
+        ("reglas_partner.evaluar", "solicitudes.aplicar", "integracion.solicitud_lista.v1"),
+    )
     despacho = DespachadorOutbox(outbox, TransporteLaboratorio(), "laboratorio")
     confirmacion = flujo.registrar(RegistrarSolicitudPartner(datos=datos_solicitud()))
     for _ in range(3):
@@ -153,7 +156,7 @@ def test_flujo_cableado_con_outbox_y_bus_de_laboratorio(base: Database) -> None:
         assert bus.despachar_siguiente()
     assert len(terminales) == 1 and terminales[0].id_solicitud == confirmacion.id_solicitud
     assert not bus.pendientes
-    assert outbox.metricas()["pendientes"] == 0
+    assert outbox.metricas()["pendientes"] == 2
     with crear_uow_solicitudes(base) as unidad_solicitudes:
         solicitud = unidad_solicitudes.solicitudes.obtener(confirmacion.id_solicitud)
         assert solicitud is not None and solicitud.version == 2

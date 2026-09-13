@@ -4,19 +4,19 @@ Microservicio de Entrada de Solicitudes de Partner de Hogar de los Alpes, para e
 
 ## Estado actual
 
-Los **planes 01–05 están implementados y verificados localmente**. El flujo Solicitudes → Reglas → Solicitudes avanza automáticamente mediante bus interno, con tres UoW, inbox y outbox en PostgreSQL. Un despachador independiente publica `SolicitudDePartnerListaParaAtencion.v1` por Pulsar. API de negocio y CQRS corresponden al plan 06.
+Los **planes 01–06 están implementados y verificados localmente**. El flujo Solicitudes → Reglas → Solicitudes avanza automáticamente mediante bus interno, con tres UoW, inbox y outbox en PostgreSQL. Un despachador publica `SolicitudDePartnerListaParaAtencion.v1` por Pulsar. La API permite registrar y consultar; un proyector conserva recibidas, listas y rechazadas. Los cuatro bucles se ejecutan dentro del proceso FastAPI y su lifespan administra el arranque y la parada. [Evidencia de 06](docs/plans/evidencia-06-cqrs-api.md).
 
 | Componente | Estado |
 |---|---|
 | Paquete Python y entorno uv | Instalación reproducible con `uv.lock`. |
-| FastAPI | Factoría de aplicación y `GET /health/live`. |
+| FastAPI | Registro `POST /solicitudes`, GET por ID, listado paginado y `GET /health/live`. |
 | SQLAlchemy y psycopg | Factoría de Engine y sesiones independientes, sin conexión durante el arranque. |
 | Módulos y seedwork | Solicitud, política, evaluación, agregación raíz, eventos y puertos implementados. |
-| Verificación local | 223 pruebas aprobadas, incluidas 46 de integración con PostgreSQL/Pulsar; lint, formato, tipado y distribución comprobados. HTTP real verificado en 01. |
+| Verificación local | 258 pruebas aprobadas, incluidas 55 de integración; lint, formato, tipado y distribución correctos. Recorrido HTTP con un proceso FastAPI y recuperación CQRS; verificación del cambio en lifespan documentada en la evidencia de 06. |
 | Contratos internos | Registro, evaluación, solicitud lista y rechazada, con versiones y datos inmutables. |
 | Handlers y bus local | Registro idempotente, evaluación inicial única, transición y despacho por consumidor comprobados con UoW en memoria y SQL; el despacho durable ejecuta el handler antes de confirmar la entrega. |
 | Persistencia | PostgreSQL, Alembic, ORM/mapeadores, inbox y outbox con reservas recuperables. |
-| Pulsar | Publicación Avro v1, recuperación real y dos suscripciones independientes. CQRS pendiente de 06. |
+| Pulsar | Publicación pública Avro v1 y tópico CQRS independiente, con proyección transaccional e idempotente de los tres estados. |
 
 Los resultados corresponden a la corrida registrada del 12 de septiembre de 2026. [Evidencia del plan 01](docs/plans/evidencia-01-base-tecnologica.md) · [Evidencia del plan 02](docs/plans/evidencia-02-modelo-dominio-seedwork.md) · [Evidencia del plan 03](docs/plans/evidencia-03-comandos-eventos-internos.md) · [Evidencia del plan 04](docs/plans/evidencia-04-sqlalchemy-uow-outbox.md) · [Evidencia del plan 05](docs/plans/evidencia-05-pulsar-contratos.md) · [Modelo de dominio](docs/modelo-dominio.md) · [Planes de construcción](docs/plans/README.md).
 
@@ -52,10 +52,12 @@ Respuesta predeterminada: HTTP 200 y `{"status":"ok","service":"solicitudes-part
 | `PARTNER_DATABASE_URL` | Ausente o vacía | Sin Engine. Si existe, debe usar `postgresql+psycopg://`. |
 | `PARTNER_PULSAR_URL` | `pulsar://127.0.0.1:6650` | Broker para publicación externa. |
 | `PARTNER_PULSAR_TOPIC` | `persistent://public/default/solicitud-partner-lista-v1` | Tópico del contrato público v1. |
+| `PARTNER_CQRS_TOPIC` | `persistent://public/default/solicitud-partner-lectura-v1` | Tópico independiente para los tres estados. |
+| `PARTNER_CQRS_SUBSCRIPTION` | `solicitudes-lectura-v1` | Suscripción durable del proyector. |
 
 `.env.example` enumera las variables, pero no se carga automáticamente. Exportarlas en la terminal o configurarlas en el entorno de ejecución. No guardar credenciales reales en archivos versionados.
 
-`create_app` acepta `Settings` y una factoría de base para pruebas. Lee el entorno al crear cada aplicación, sin configuración global cacheada. Si hay URL, el lifespan construye Engine/sessionmaker sin abrir conexiones y libera el Engine al cerrar, también ante excepciones. Cada invocación de `session_factory()` entrega una sesión independiente. Su propietario debe cerrarla; las UoW SQL controlan las transacciones. La API no ejecuta migraciones ni conecta todavía el flujo de negocio.
+`create_app` acepta `Settings` y una factoría de base para pruebas. Lee el entorno al crear cada aplicación, sin configuración global cacheada. Si hay URL, el lifespan construye Engine/sessionmaker, verifica los destinos pendientes e inicia los bucles de procesamiento; al cerrar espera su parada y libera el Engine, también ante excepciones. Las migraciones deben aplicarse antes del arranque. Cada invocación de `session_factory()` entrega una sesión independiente. Su propietario debe cerrarla; las UoW SQL controlan las transacciones. La API conecta registro y consultas mediante dependencias separadas; no ejecuta migraciones. Sin URL de base, solo ofrece liveness y no inicia procesamiento.
 
 ## Persistencia local
 
@@ -77,9 +79,9 @@ uv run --locked python scripts/cargar_politicas.py --version 2 --red HOMOLOGADA_
 
 `--id-partner` y `--id-politica` permiten cargar otros ejemplos. Hay una fila de política vigente por partner; las evaluaciones conservan su resultado e identidad/versión originales, incluso después de sustituir esa fila. La carga es administrativa y explícita, sin endpoint nuevo.
 
-Los esquemas `solicitudes` y `reglas_partner` contienen tablas de sus módulos; `mensajeria` contiene inbox, outbox y `eventos`, un archivo de documentos completos confirmado en la misma transacción. El archivo conserva registro y rechazo para la futura proyección; no representa entregas pendientes ni Event Sourcing. `lectura` queda preparado y vacío para 06. Los datos compuestos y eventos se conservan en JSONB mediante mapeadores y formatos explícitos; identidad, referencia, estado y versión de solicitudes tienen columnas relacionales. El origen de evaluación se conserva separado del outbox. El modelo de dominio no es ORM.
+Los esquemas `solicitudes` y `reglas_partner` contienen tablas de sus módulos; `mensajeria` contiene inbox, outbox y `eventos`, un archivo de documentos completos confirmado en la misma transacción. El archivo conserva los documentos de los eventos; no representa entregas pendientes ni Event Sourcing. `lectura.solicitudes` contiene la vista CQRS, con versión, datos desnormalizados y fecha de proyección. Los datos compuestos y eventos se conservan en JSONB mediante mapeadores y formatos explícitos; identidad, referencia, estado y versión de solicitudes tienen columnas relacionales. El origen de evaluación se conserva separado del outbox. El modelo de dominio no es ORM.
 
-`config/bootstrap.py` compone los handlers y despachadores. `workers/despacho.py` administra los ciclos, el arranque y la parada. `config/rutas.py` centraliza las rutas `reglas_partner.evaluar`, `solicitudes.aplicar` e `integracion.solicitud_lista.v1`. El rechazo se archiva sin salida externa. No se crean consumidores Pulsar para comunicación entre los dos módulos.
+`config/bootstrap.py` compone los handlers y despachadores. `config/procesamiento.py` conecta el lifespan con los ciclos de `seedwork/infraestructura/ciclos.py`. `config/rutas.py` centraliza las rutas `reglas_partner.evaluar`, `solicitudes.aplicar`, `integracion.solicitud_lista.v1` y `cqrs.solicitud.v1`. El rechazo alimenta CQRS, pero no el contrato público de solicitud lista. No se crean consumidores Pulsar para comunicación entre los dos módulos.
 
 Cada entrega tiene identidad estable por evento/destino. `DespachadorOutbox` reserva, llama al puerto `Publicador` fuera de la transacción y marca solo el éxito. La entrega interna espera el commit del handler; `send()` externo espera al broker. Ambos ciclos son independientes, secuenciales, de una entrega por lote, con pausa de 0,2 s, reserva de 30 s y reintento tras 5 s. El cliente limita conexión, operación y envío a 5 s por operación. Si cae el proceso, el siguiente recupera reservas vencidas y el inbox evita repetir efectos. Los timeouts no equivalen a ausencia de publicación.
 
@@ -119,16 +121,13 @@ TestClient usa `httpx2`, requerido por la versión resuelta de Starlette; por el
 
 Preparar el tópico, retención y suscripciones siguiendo el [contrato público](docs/contratos/README.md). El cliente `pulsar-client[avro]` 3.13.0 forma parte del lockfile; el broker local es Pulsar 4.1.3, con volumen persistente y administración en `127.0.0.1:18086`.
 
-Con `PARTNER_DATABASE_URL` exportada en cada terminal, iniciar ambos despachadores:
+Con `PARTNER_DATABASE_URL` exportada, iniciar el servicio:
 
 ```bash
-# Terminal 1
-uv run --locked python -m solicitudes_partner.workers.despacho interno
-# Terminal 2
-uv run --locked python -m solicitudes_partner.workers.despacho integracion
+uv run --locked uvicorn solicitudes_partner.api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
-El arranque es explícito; importar módulos o ejecutar FastAPI no inicia los ciclos. Ctrl+C/SIGTERM solicita parada, espera la operación actual y cierra recursos. El worker reutiliza los despachadores; las reglas de entrega permanecen en infraestructura.
+El `lifespan` de FastAPI inicia el despacho interno, la publicación pública, la publicación CQRS y el consumidor de proyección en cuatro hilos del mismo proceso. Las llamadas bloqueantes de SQLAlchemy y `pulsar-client` quedan fuera del event loop HTTP. Importar módulos o construir la aplicación no inicia ciclos. Al cerrar FastAPI se solicita la parada de todos los bucles, se espera a que terminen y cierren los clientes Pulsar, y después se cierra la base.
 
 Tras aplicar migraciones y cargar la política de laboratorio, en otra terminal:
 
@@ -149,9 +148,8 @@ Para probar una caída del consumidor después de persistir, agregar `--interrum
 src/solicitudes_partner/
   api/
     app.py
-  workers/
-    despacho.py
   config/
+    procesamiento.py
     settings.py
     database.py
   modulos/
@@ -189,10 +187,81 @@ Seedwork es local a este servicio y contiene las abstracciones utilizadas por lo
 
 ## Próximos incrementos
 
-El siguiente paso es el [plan 06: CQRS y API](docs/plans/06-cqrs-api.md). Siguen pendientes la recepción HTTP de negocio, proyecciones de recibidas/listas/rechazadas, experimentos de carga y despliegue compartido.
+El siguiente paso es el [plan 07: integración y experimentación](docs/plans/07-integracion-experimentos.md). Siguen pendientes los experimentos de carga, la integración grupal y el despliegue compartido.
 
 Entrada y una porción de Reglas cuentan como **un servicio** de la POC. Los consumidores SQLite son herramientas de laboratorio; Orquestación, Cotizaciones y Scoring empresariales quedan fuera de este repositorio. Standalone no acredita un clúster.
 
 `RelojActual` e `IdentificadoresAleatorios` son adaptadores únicos en `seedwork/infraestructura/reloj.py` e `identificadores.py`; implementan los puertos de aplicación y se reutilizan en el servicio, scripts y pruebas SQL.
 
-La UoW delega el archivo de eventos y la creación de salidas a `RepositorioSalidasSQL`, que utiliza su misma sesión sin confirmar transacciones propias. El repositorio de despacho conserva sus transacciones cortas para reservas y acuses. `mapeadores.py` de Solicitudes contiene los mapeos SQL; `mapeador_integracion.py` transforma al contrato Avro. Importar persistencia SQL no carga Pulsar.
+La UoW delega el archivo de eventos y la creación de salidas a `RepositorioSalidasSQL`, que utiliza su misma sesión sin confirmar transacciones propias. El repositorio de despacho conserva sus transacciones cortas para reservas y acuses. `mapeadores.py` de Solicitudes contiene los mapeos SQL; `mapeadores_eventos.py` transforma los mensajes Avro de integración y de lectura. `repositorios.py` agrupa la persistencia de solicitudes, las consultas y las actualizaciones de la vista; `proyecciones.py` coordina su transacción con el registro del evento procesado. Importar persistencia SQL no carga Pulsar.
+
+
+## API y CQRS — laboratorio del plan 06
+
+Preparar una base nueva para esta demostración, sin borrar datos anteriores. Este comando de creación se ejecuta una sola vez; en un reinicio se reutiliza la base existente:
+
+```bash
+docker compose up -d --wait postgres
+docker compose up -d --wait pulsar
+docker compose exec postgres createdb -U partner partner_cqrs_demo
+export PARTNER_DATABASE_URL='postgresql+psycopg://partner:partner_local@127.0.0.1:55434/partner_cqrs_demo'
+export PARTNER_CQRS_TOPIC='persistent://public/default/solicitud-partner-lectura-demo-v1'
+export PARTNER_CQRS_SUBSCRIPTION='solicitudes-lectura-demo-v1'
+uv run --locked alembic upgrade head
+uv run --locked python scripts/cargar_politicas.py
+```
+
+En esa misma terminal iniciar el único proceso del servicio:
+
+```bash
+uv run --locked uvicorn solicitudes_partner.api.app:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+La suscripción CQRS se abre automáticamente antes de publicar los primeros mensajes de lectura. Si Pulsar no está disponible, se reintenta en segundo plano y el flujo interno puede seguir registrando y evaluando; las salidas permanecen en outbox. En los reinicios se reutilizan la base, el tópico y la suscripción. La publicación pública también arranca con la API; sus consumidores externos preparan sus suscripciones según el contrato.
+
+Registrar una solicitud:
+
+```bash
+curl -i http://127.0.0.1:8000/solicitudes \
+  -H 'Content-Type: application/json' \
+  -H 'X-Partner-Laboratorio: 00000000-0000-0000-0000-000000000002' \
+  -d '{"referencia_externa":"SIN-DEMO-1","categoria":"plomeria","tipo":"SINIESTRO","aprobacion_previa":true}'
+```
+
+Devuelve `202`, `id_solicitud`, `recepcion_confirmada: true` y `Location`. Consultar esa URL con el mismo encabezado de partner. Para listar:
+
+```bash
+curl -s 'http://127.0.0.1:8000/solicitudes?limite=20&desplazamiento=0' \
+  -H 'X-Partner-Laboratorio: 00000000-0000-0000-0000-000000000002'
+```
+
+`X-Partner-Laboratorio` selecciona un UUID no nulo para el ejercicio; cualquiera que acceda a la API local puede seleccionarlo. No autentica al cliente ni representa autorización de producción. El body no admite `id_partner`; registro y consultas usan la dependencia de identidad, sustituible en pruebas. Las consultas filtran por partner dentro de su repositorio.
+
+| Operación | Respuesta |
+|---|---|
+| Registro nuevo o repetición idéntica | `202`, mismo ID para la misma referencia y datos. |
+| Misma referencia del partner con otro contenido | `409`. |
+| Siniestro sin aprobación declarada, tipo inválido o datos vacíos | `422`. `false` sí se recibe y produce rechazo empresarial posterior. |
+| Consulta de fila visible | `200`; recibida, lista o rechazada según lo proyectado. |
+| Fila ausente o perteneciente a otro partner | `404`, «no disponible en la vista». No afirma inexistencia en escritura. |
+| Persistencia sin configurar o temporalmente no disponible | `503`, sin confirmación de recepción. |
+
+La consulta usa únicamente `lectura.solicitudes`. Puede retrasarse y devolver `404` inmediatamente después del POST; el cliente que obtuvo confirmación puede reintentar. El listado ordena por creación e ID, con límite 1–100 y desplazamiento no negativo; no ofrece un snapshot entre páginas bajo inserciones concurrentes.
+
+Para observar `RECIBIDA`, usar un partner sin política. Registrar conserva la solicitud mientras la evaluación espera configuración. Cargar su política con `scripts/cargar_politicas.py --id-partner UUID` permite continuar automáticamente. Para rechazo usar una referencia nueva con `aprobacion_previa:false`; la vista conserva el motivo y no inventa una red.
+
+Para ensayar recuperación, registrar sin política, observar `RECIBIDA`, detener FastAPI con Ctrl+C, cargar la política y reiniciar el mismo servicio. La evaluación continúa y la vista converge sin recrear la base ni cambiar de suscripción. `seedwork/infraestructura/ciclos.py` comparte repetición/parada; bootstrap compone, infraestructura procesa y los repositorios ejecutan SQL. Los logs `Proyeccion confirmada` incluyen ID, versión y latencia desde el evento hasta después del commit.
+
+La POC comparte servidor y credencial PostgreSQL. Cada operación abre su propia sesión; no exige roles separados, migración histórica, autenticación de producción ni despliegue independiente de consultas. [Contrato CQRS y HTTP](docs/contratos/lectura.md).
+
+### Construcción de dependencias
+
+Las funciones `componer_*` de `config/bootstrap.py` actúan como fábricas explícitas de handlers, despachadores y del consumidor de proyección. Las funciones `crear_uow_*` de `config/persistencia.py` construyen las unidades de trabajo. No se requiere una fábrica genérica para seleccionar repositorios: cada operación declara su dependencia y recibe la sesión o la fábrica de sesiones correspondiente.
+
+### Despliegue conjunto de la POC
+
+API, consumidores y relay comparten un servicio y un proceso Uvicorn por instancia. Se conservan componentes y transacciones separados; escalan y se reinician juntos. No se usa `--reload` para desplegar ni se crean procesos Uvicorn adicionales.
+
+Para Cloud Run, configurar facturación por instancia (CPU disponible fuera de peticiones), mínimo una instancia y máximo una para la demostración. Uvicorn recibe SIGTERM y ejecuta el cierre del lifespan. Cloud Run puede terminar una instancia incluso con un mínimo configurado; outbox, inbox y la suscripción durable permiten recuperar lo pendiente si la operación no alcanza a finalizar. Esta configuración queda prevista en el plan 08; no se desplegó en la nube.
+
+Referencias: [lifespan del BFF del tutorial 9](https://github.com/MISW4406/tutorial-9-bff/blob/main/src/bff_web/main.py), [consumidor con aiopulsar](https://github.com/MISW4406/tutorial-9-bff/blob/main/src/bff_web/consumidores.py), [FastAPI lifespan](https://fastapi.tiangolo.com/advanced/events/) y [CPU y facturación de Cloud Run](https://docs.cloud.google.com/run/docs/configuring/billing-settings). Aquí se conserva `pulsar-client` síncrono con hilos administrados desde lifespan.

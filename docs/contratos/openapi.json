@@ -1,0 +1,474 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Entrada de Solicitudes de Partner",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/solicitudes": {
+      "post": {
+        "tags": [
+          "solicitudes"
+        ],
+        "summary": "Registrar Solicitud",
+        "operationId": "registrar_solicitud_solicitudes_post",
+        "parameters": [
+          {
+            "name": "x-partner-laboratorio",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identidad seleccionada para la POC local; no autentica al cliente.",
+              "title": "X-Partner-Laboratorio"
+            },
+            "description": "Identidad seleccionada para la POC local; no autentica al cliente."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistroSolicitudHTTP"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmacionRegistroSolicitud"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Referencia con contenido distinto"
+          },
+          "422": {
+            "description": "Datos invalidos"
+          },
+          "503": {
+            "description": "Persistencia no disponible"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "solicitudes"
+        ],
+        "summary": "Listar Solicitudes",
+        "operationId": "listar_solicitudes_solicitudes_get",
+        "parameters": [
+          {
+            "name": "limite",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limite"
+            }
+          },
+          {
+            "name": "desplazamiento",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Desplazamiento"
+            }
+          },
+          {
+            "name": "x-partner-laboratorio",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identidad seleccionada para la POC local; no autentica al cliente.",
+              "title": "X-Partner-Laboratorio"
+            },
+            "description": "Identidad seleccionada para la POC local; no autentica al cliente."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VistaSolicitud"
+                  },
+                  "title": "Response Listar Solicitudes Solicitudes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/solicitudes/{id_solicitud}": {
+      "get": {
+        "tags": [
+          "solicitudes"
+        ],
+        "summary": "Consultar Solicitud",
+        "operationId": "consultar_solicitud_solicitudes__id_solicitud__get",
+        "parameters": [
+          {
+            "name": "id_solicitud",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Id Solicitud"
+            }
+          },
+          {
+            "name": "x-partner-laboratorio",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identidad seleccionada para la POC local; no autentica al cliente.",
+              "title": "X-Partner-Laboratorio"
+            },
+            "description": "Identidad seleccionada para la POC local; no autentica al cliente."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VistaSolicitud"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No disponible en la vista; puede existir retraso de proyeccion"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Liveness",
+        "operationId": "liveness_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Liveness Health Live Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Admisibilidad": {
+        "type": "string",
+        "enum": [
+          "ADMISIBLE",
+          "NO_ADMISIBLE"
+        ],
+        "title": "Admisibilidad"
+      },
+      "ConfirmacionRegistroSolicitud": {
+        "properties": {
+          "id_solicitud": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id Solicitud"
+          },
+          "recepcion_confirmada": {
+            "type": "boolean",
+            "title": "Recepcion Confirmada",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id_solicitud"
+        ],
+        "title": "ConfirmacionRegistroSolicitud"
+      },
+      "EstadoSolicitud": {
+        "type": "string",
+        "enum": [
+          "RECIBIDA",
+          "LISTA_PARA_ATENCION",
+          "RECHAZADA"
+        ],
+        "title": "EstadoSolicitud"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MotivoRechazo": {
+        "type": "string",
+        "enum": [
+          "APROBACION_PREVIA_REQUERIDA"
+        ],
+        "title": "MotivoRechazo"
+      },
+      "RegistroSolicitudHTTP": {
+        "properties": {
+          "referencia_externa": {
+            "type": "string",
+            "title": "Referencia Externa"
+          },
+          "categoria": {
+            "type": "string",
+            "title": "Categoria"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoSolicitud"
+          },
+          "aprobacion_previa": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aprobacion Previa"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "referencia_externa",
+          "categoria",
+          "tipo"
+        ],
+        "title": "RegistroSolicitudHTTP"
+      },
+      "TipoRedProveedores": {
+        "type": "string",
+        "enum": [
+          "GENERAL_HDA",
+          "HOMOLOGADA_PARTNER"
+        ],
+        "title": "TipoRedProveedores"
+      },
+      "TipoSolicitud": {
+        "type": "string",
+        "enum": [
+          "SINIESTRO",
+          "INSTALACION"
+        ],
+        "title": "TipoSolicitud"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VistaSolicitud": {
+        "properties": {
+          "id_solicitud": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id Solicitud"
+          },
+          "id_partner": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id Partner"
+          },
+          "referencia_externa": {
+            "type": "string",
+            "title": "Referencia Externa"
+          },
+          "categoria": {
+            "type": "string",
+            "title": "Categoria"
+          },
+          "tipo_solicitud": {
+            "$ref": "#/components/schemas/TipoSolicitud"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoSolicitud"
+          },
+          "version_solicitud": {
+            "type": "integer",
+            "title": "Version Solicitud"
+          },
+          "creada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Creada En"
+          },
+          "actualizada_en": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Actualizada En"
+          },
+          "resultado": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Admisibilidad"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MotivoRechazo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tipo_red": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TipoRedProveedores"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id_politica": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Politica"
+          },
+          "version_politica": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version Politica"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id_solicitud",
+          "id_partner",
+          "referencia_externa",
+          "categoria",
+          "tipo_solicitud",
+          "estado",
+          "version_solicitud",
+          "creada_en",
+          "actualizada_en"
+        ],
+        "title": "VistaSolicitud"
+      }
+    }
+  }
+}

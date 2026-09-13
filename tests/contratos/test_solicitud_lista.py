@@ -8,7 +8,7 @@ from pulsar.schema import AvroSchema
 from solicitudes_partner.modulos.solicitudes.infraestructura.esquemas.v1.eventos import (
     SolicitudListaV1,
 )
-from solicitudes_partner.modulos.solicitudes.infraestructura.mapeador_integracion import (
+from solicitudes_partner.modulos.solicitudes.infraestructura.mapeadores_eventos import (
     evento_integracion,
 )
 from solicitudes_partner.seedwork.dominio.eventos import EventoDominio

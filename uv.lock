@@ -504,6 +504,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pulsar-client", extra = ["avro"] },
+    { name = "pydantic" },
     { name = "sqlalchemy" },
     { name = "uvicorn" },
 ]
@@ -522,6 +523,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pulsar-client", extras = ["avro"], specifier = "==3.13.0" },
+    { name = "pydantic", specifier = ">=2,<3" },
     { name = "sqlalchemy", specifier = ">=2.0,<2.1" },
     { name = "uvicorn", specifier = ">=0.30,<1" },
 ]

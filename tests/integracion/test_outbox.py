@@ -10,6 +10,7 @@ from tests.unitarias.dominio.datos import registro
 
 def test_reserva_vencida_no_modifica_reserva_nueva(base: Database) -> None:
     with crear_uow_solicitudes(base) as unidad:
+        unidad.destinos = lambda evento: ("reglas_partner.evaluar",)
         unidad.registrar_salida(registro())
         unidad.confirmar()
     outbox = RepositorioOutbox(base.session_factory)
@@ -57,6 +58,7 @@ def test_reclamadores_concurrentes_distribuyen_lote(base: Database) -> None:
     from uuid import UUID, uuid4
 
     with crear_uow_solicitudes(base) as unidad:
+        unidad.destinos = lambda evento: ("reglas_partner.evaluar",)
         for _ in range(10):
             unidad.registrar_salida(replace(registro(), id_evento=uuid4()))
         unidad.confirmar()
@@ -89,6 +91,7 @@ def test_despacho_sin_transaccion_abierta_y_sin_acuse(base: Database) -> None:
             return self.confirmar
 
     with crear_uow_solicitudes(base) as unidad:
+        unidad.destinos = lambda evento: ("reglas_partner.evaluar",)
         unidad.registrar_salida(registro())
         unidad.confirmar()
     transporte = Transporte()
@@ -118,6 +121,7 @@ def test_caida_despues_de_enviar_antes_de_marcar(base: Database) -> None:
             return True
 
     with crear_uow_solicitudes(base) as unidad:
+        unidad.destinos = lambda evento: ("reglas_partner.evaluar",)
         unidad.registrar_salida(registro())
         unidad.confirmar()
     outbox = RepositorioOutbox(base.session_factory)
@@ -144,6 +148,7 @@ def test_destinos_desconocidos_solo_bloquean_mientras_estan_pendientes(base: Dat
     admitidos = ("reglas_partner.evaluar",)
     assert not outbox.hay_pendientes_fuera_de(admitidos)
     with crear_uow_solicitudes(base) as unidad:
+        unidad.destinos = lambda evento: ("reglas_partner.evaluar",)
         unidad.registrar_salida(registro())
         unidad.confirmar()
     assert not outbox.hay_pendientes_fuera_de(admitidos)

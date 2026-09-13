@@ -65,7 +65,7 @@ def test_fallo_revierte_paso_completo(base: Database, etapa: str, fallo: str) ->
             0 if etapa == "evaluar" else 1
         )
         assert sesion.scalar(select(func.count()).select_from(SalidaSQL)) == (
-            1 if etapa == "evaluar" else 2
+            2 if etapa == "evaluar" else 3
         )
         assert sesion.scalar(select(func.count()).select_from(EvaluacionSQL)) == (
             0 if etapa == "evaluar" else 1

@@ -2,7 +2,7 @@
 
 Estado: implementado y verificado localmente. Dependencia: 04. [Evidencia de cierre](evidencia-05-pulsar-contratos.md).
 
-Implementación concreta: archivo transaccional `mensajeria.eventos`, entrega síncrona por `BusEventosLocal.entregar`, ciclos independientes en `workers/despacho.py` y publicador Avro v1. [Contrato y comandos](../contratos/README.md).
+Implementación concreta: archivo transaccional `mensajeria.eventos`, entrega síncrona por `BusEventosLocal.entregar`, ciclos en hilos administrados por lifespan desde `config/procesamiento.py` y publicador Avro v1. [Contrato y comandos](../contratos/README.md).
 
 ## Objetivo
 
@@ -27,11 +27,11 @@ La POC permite conectar Orquestación/Atención, Cotizaciones y un nuevo consumi
 
 1. Conservar los handlers, eventos de dominio, inbox y tres UoW de 04. Reutilizar `config/bootstrap.py` y el bus local para conectar Solicitudes con Reglas; no crear consumidores Pulsar ni esquemas Avro para esos dos intercambios internos.
 2. Sustituir `destinos_laboratorio` por destinos explícitos de entrega interna e integración. Reutilizar el outbox y sus marcas por destino. Inspeccionar pendientes de laboratorio antes del cambio y documentar su resolución si existen. No construir un motor genérico de rutas.
-3. Automatizar el despacho interno mediante una función de ejecución síncrona iniciada desde `workers/despacho.py`, que recupera salidas persistidas y las entrega al bus. El éxito de la entrega exige que el handler destinatario termine su UoW, o reconozca un duplicado ya confirmado. `BusEventosLocal.publicar()` solo encola: no permite marcar la salida como completada. Adaptar mínimamente la conexión entre bus y despachador para asociar el resultado con su entrega. Si no hay handler registrado para una ruta interna requerida, conservar pendiente y señalar error.
+3. Automatizar el despacho interno mediante una función de ejecución síncrona iniciada desde `config/procesamiento.py`, que recupera salidas persistidas y las entrega al bus. El éxito de la entrega exige que el handler destinatario termine su UoW, o reconozca un duplicado ya confirmado. `BusEventosLocal.publicar()` solo encola: no permite marcar la salida como completada. Adaptar mínimamente la conexión entre bus y despachador para asociar el resultado con su entrega. Si no hay handler registrado para una ruta interna requerida, conservar pendiente y señalar error.
 4. Tras caída, reconstruir las entregas desde PostgreSQL; la cola en memoria no es la fuente durable. Probar especialmente commit del handler seguido de caída antes de marcar la entrega. El inbox evita repetir el efecto al reintentar. Mantener las reservas y tokens existentes, publicación secuencial, lotes pequeños y plazos coherentes; sin renovación de reservas ni concurrencia avanzada.
 5. Definir el esquema Avro v1 y mapeador del evento público en infraestructura de Solicitudes. Conservar ID del evento, instante original, ID de solicitud, tipo, versión, partner y condición de red general/homologada, además de los datos de solicitud incluidos en el contrato. Usar ID de solicitud para correlación. Mantener identidad y contenido equivalentes en reintentos; MessageId del broker no sustituye al ID del evento. No añadir campos ficticios para aparentar un Trabajo completo.
 6. Incorporar el cliente Pulsar con uv y registrar versiones verificadas de Python, cliente y broker. Implementar el adaptador `Publicador` y el relay de integración reutilizando el outbox. Marcar enviado solo tras confirmación positiva del broker; fallar el envío no revierte la solicitud ni su evaluación. Los handlers no publican directamente a Pulsar.
-7. Separar el avance interno de la disponibilidad del broker: una caída de Pulsar permite registrar, evaluar y dejar lista o rechazada la solicitud; solo la entrega externa queda pendiente. Definir en `workers/despacho.py` funciones de arranque y parada del despacho interno y de la publicación externa. Estas funciones conectan y ejecutan repetidamente los despachadores existentes, con apertura/cierre de recursos, pausas y diagnóstico sencillo. Mantener ambas actividades independientes para que la espera de Pulsar no bloquee el despacho interno. No iniciar ciclos al importar el módulo; su ejecución debe ser explícita. No compartir una Session entre ejecuciones.
+7. Separar el avance interno de la disponibilidad del broker: una caída de Pulsar permite registrar, evaluar y dejar lista o rechazada la solicitud; solo la entrega externa queda pendiente. Definir en `config/procesamiento.py` funciones de arranque y parada del despacho interno y de la publicación externa. Estas funciones conectan y ejecutan repetidamente los despachadores existentes, con apertura/cierre de recursos, pausas y diagnóstico sencillo. Mantener ambas actividades independientes para que la espera de Pulsar no bloquee el despacho interno. No iniciar ciclos al importar el módulo; su ejecución debe ser explícita. No compartir una Session entre ejecuciones.
 8. Preparar standalone local y conexión configurable al broker compartido. Documentar tópico público, suscripciones de prueba distintas y conservación de mensajes para la recuperación ensayada. Un envío al tópico sirve a varios suscriptores; no crear una fila outbox por consumidor externo. Cada servicio conserva su implementación; no crear los repositorios de los compañeros ni CI remota.
 9. Mantener los eventos completos de registro y estados finales disponibles para CQRS. En 06 se concreta su entrega al proyector sin depender únicamente del evento público de solicitud lista: una recibida y una rechazada también deben proyectarse. En 05 no descartar sus documentos persistidos ni fingir una entrega a un proyector inexistente.
 
@@ -56,13 +56,13 @@ Rutas relativas a `src/solicitudes_partner/`; reutilizar archivos existentes cua
 |---|---|
 | `seedwork/infraestructura/bus_eventos_local.py` y `despacho_outbox.py` | Entrega interna y resultado asociado a la salida persistida; conservar el mecanismo común de reservas. |
 | `seedwork/infraestructura/publicador_pulsar.py` | Adaptador de publicación externa. |
-| `modulos/solicitudes/infraestructura/esquemas/v1/` y `mapeador_integracion.py` | Contrato público y conversión; distinguir mapeos de integración y SQL. |
+| `modulos/solicitudes/infraestructura/esquemas/v1/` y `mapeadores_eventos.py` | Contrato público y conversión; distinguir mapeos de integración y SQL. |
 | `config/rutas.py`, `config/persistencia.py` y `config/settings.py` | Rutas internas/externas y parámetros. |
 | `config/bootstrap.py` | Composición de handlers, adaptadores y despachadores. |
-| `workers/despacho.py` | Ciclos, arranque/parada, señales y cierre de recursos. |
+| `config/procesamiento.py` | Ciclos, arranque/parada, señales y cierre de recursos. |
 | `seedwork/infraestructura/reloj.py` e `identificadores.py` | Implementaciones únicas de los puertos de reloj e identificadores. |
 
-Ajuste acordado tras revisar la implementación: separar la ejecución continua en `workers/despacho.py`, manteniendo `config/bootstrap.py` dedicado a composición. El worker ejecuta los despachadores existentes; sus reglas de entrega permanecen en infraestructura.
+Ajuste acordado tras revisar la implementación: separar la ejecución continua en `config/procesamiento.py`, manteniendo `config/bootstrap.py` dedicado a composición. El worker ejecuta los despachadores existentes; sus reglas de entrega permanecen en infraestructura.
 
 Los consumidores externos de laboratorio viven en las pruebas/herramientas de demostración, no como módulos empresariales nuevos. Documentar comandos y variables al implementar. No agregar fachadas de reexportación, otro bus ni comandos intermedios sin responsabilidad adicional.
 

@@ -1,0 +1,89 @@
+{
+  "type": "record",
+  "name": "SolicitudLecturaV1",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string"
+    },
+    {
+      "name": "tipo",
+      "type": "string"
+    },
+    {
+      "name": "version_contrato",
+      "type": "int"
+    },
+    {
+      "name": "id_solicitud",
+      "type": "string"
+    },
+    {
+      "name": "id_partner",
+      "type": "string"
+    },
+    {
+      "name": "referencia_externa",
+      "type": "string"
+    },
+    {
+      "name": "categoria",
+      "type": "string"
+    },
+    {
+      "name": "tipo_solicitud",
+      "type": "string"
+    },
+    {
+      "name": "estado",
+      "type": "string"
+    },
+    {
+      "name": "version_solicitud",
+      "type": "int"
+    },
+    {
+      "name": "creada_en",
+      "type": "string"
+    },
+    {
+      "name": "actualizada_en",
+      "type": "string"
+    },
+    {
+      "name": "resultado",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    {
+      "name": "motivo",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    {
+      "name": "tipo_red",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    {
+      "name": "id_politica",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    {
+      "name": "version_politica",
+      "type": [
+        "null",
+        "int"
+      ]
+    }
+  ]
+}
