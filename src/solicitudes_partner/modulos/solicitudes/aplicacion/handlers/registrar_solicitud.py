@@ -11,6 +11,7 @@ from solicitudes_partner.modulos.solicitudes.aplicacion.unidad_trabajo import (
 )
 from solicitudes_partner.modulos.solicitudes.dominio.entidades import SolicitudPartner
 from solicitudes_partner.seedwork.aplicacion.identificadores import GeneradorIdentificadores
+from solicitudes_partner.seedwork.aplicacion.reintentos import reintentar_colision
 from solicitudes_partner.seedwork.aplicacion.reloj import Reloj
 
 
@@ -20,6 +21,7 @@ class RegistrarSolicitudHandler:
     reloj: Reloj
     identificadores: GeneradorIdentificadores
 
+    @reintentar_colision
     def __call__(self, comando: RegistrarSolicitudPartner) -> ConfirmacionRegistroSolicitud:
         with self.crear_unidad() as unidad:
             datos = comando.datos

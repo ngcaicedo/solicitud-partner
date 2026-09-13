@@ -8,6 +8,7 @@ from solicitudes_partner.modulos.solicitudes.dominio.eventos import (
     SolicitudPartnerRegistrada,
 )
 from solicitudes_partner.seedwork.aplicacion.identificadores import GeneradorIdentificadores
+from solicitudes_partner.seedwork.aplicacion.reintentos import reintentar_colision
 from solicitudes_partner.seedwork.aplicacion.reloj import Reloj
 
 
@@ -17,12 +18,17 @@ class EvaluarRegistroHandler:
     reloj: Reloj
     identificadores: GeneradorIdentificadores
 
+    @reintentar_colision
     def __call__(self, registro: SolicitudPartnerRegistrada) -> None:
         with self.crear_unidad() as unidad:
             existente = unidad.evaluaciones.obtener_por_solicitud(registro.id_solicitud)
             if existente is not None:
                 if unidad.evaluaciones.obtener_origen(registro.id_solicitud) != registro:
                     raise ConflictoEvaluacion("La solicitud ya fue evaluada con otro registro")
+                if unidad.preparar_entrada("reglas_partner.evaluar", registro):
+                    unidad.confirmar()
+                return
+            if not unidad.preparar_entrada("reglas_partner.evaluar", registro):
                 return
             politica = unidad.politicas.obtener(registro.datos.id_partner)
             evaluacion = evaluar_solicitud(

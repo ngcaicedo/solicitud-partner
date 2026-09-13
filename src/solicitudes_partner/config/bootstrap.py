@@ -1,5 +1,9 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from solicitudes_partner.config.database import Database
 
 from solicitudes_partner.modulos.reglas_partner.aplicacion.handlers.evaluar_registro import (
     EvaluarRegistroHandler,
@@ -47,3 +51,20 @@ def componer_flujo(
     bus.suscribir(SolicitudPartnerRegistrada, "reglas_partner.evaluar", flujo.evaluar)
     bus.suscribir(ReglasDePartnerEvaluadas, "solicitudes.aplicar", flujo.aplicar)
     return flujo
+
+
+def componer_flujo_sql(
+    base: "Database",
+    reloj: Reloj,
+    identificadores: GeneradorIdentificadores,
+    bus: BusEventos,
+) -> FlujoInterno:
+    from solicitudes_partner.config.persistencia import crear_uow_reglas, crear_uow_solicitudes
+
+    return componer_flujo(
+        lambda: crear_uow_solicitudes(base),
+        lambda: crear_uow_reglas(base),
+        reloj,
+        identificadores,
+        bus,
+    )

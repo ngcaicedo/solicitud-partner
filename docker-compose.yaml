@@ -1,0 +1,19 @@
+name: entrada-solicitudes-partner
+services:
+  postgres:
+    image: postgres:17.6
+    environment:
+      POSTGRES_USER: partner
+      POSTGRES_PASSWORD: partner_local
+      POSTGRES_DB: partner
+    ports:
+      - "127.0.0.1:${PARTNER_POSTGRES_PORT:-55434}:5432"
+    volumes:
+      - partner_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U partner -d partner"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  partner_postgres:

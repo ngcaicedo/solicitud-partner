@@ -2,6 +2,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Self
+from uuid import UUID
 
 from solicitudes_partner.seedwork.aplicacion.bus_eventos import BusEventos
 from solicitudes_partner.seedwork.dominio.eventos import EventoDominio
@@ -18,6 +19,7 @@ class EstadoSolicitudes:
         default_factory=RepositorioSolicitudesMemoria
     )
     salidas: list[EventoDominio] = field(default_factory=list)
+    entradas: dict[tuple[str, UUID], EventoDominio] = field(default_factory=dict)
 
 
 @dataclass
@@ -27,6 +29,7 @@ class EstadoReglas:
     )
     politicas: RepositorioPoliticasMemoria = field(default_factory=RepositorioPoliticasMemoria)
     salidas: list[EventoDominio] = field(default_factory=list)
+    entradas: dict[tuple[str, UUID], EventoDominio] = field(default_factory=dict)
 
 
 @dataclass
@@ -65,6 +68,17 @@ class UnidadTrabajoMemoria[Estado: (EstadoSolicitudes, EstadoReglas)]:
     def registrar_salida(self, evento: EventoDominio) -> None:
         self._verificar_activa()
         self.estado.salidas.append(evento)
+
+    def preparar_entrada(self, consumidor: str, evento: EventoDominio) -> bool:
+        self._verificar_activa()
+        clave = (consumidor, evento.id_evento)
+        anterior = self.estado.entradas.get(clave)
+        if anterior is not None:
+            if anterior != evento:
+                raise ValueError("La entrada ya tiene otro contenido")
+            return False
+        self.estado.entradas[clave] = evento
+        return True
 
     def confirmar(self) -> None:
         self._verificar_activa()

@@ -15,6 +15,7 @@ from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import (
     TipoRedProveedores,
 )
 from solicitudes_partner.seedwork.aplicacion.identificadores import GeneradorIdentificadores
+from solicitudes_partner.seedwork.aplicacion.reintentos import reintentar_colision
 from solicitudes_partner.seedwork.aplicacion.reloj import Reloj
 
 
@@ -24,6 +25,7 @@ class AplicarResultadoEvaluacionHandler:
     reloj: Reloj
     identificadores: GeneradorIdentificadores
 
+    @reintentar_colision
     def __call__(self, evento: ReglasDePartnerEvaluadas) -> None:
         with self.crear_unidad() as unidad:
             solicitud = unidad.solicitudes.obtener(evento.id_solicitud)
@@ -48,8 +50,11 @@ class AplicarResultadoEvaluacionHandler:
                 id_evento=self.identificadores.generar(),
                 instante=self.reloj.ahora(),
             )
+            if not unidad.preparar_entrada("solicitudes.aplicar", evento):
+                return
             salidas = solicitud.retirar_eventos()
             if not salidas:
+                unidad.confirmar()
                 return
             unidad.solicitudes.guardar(solicitud)
             for salida in salidas:

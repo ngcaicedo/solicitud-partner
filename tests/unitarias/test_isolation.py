@@ -20,6 +20,8 @@ with (
     patch.object(psycopg, "connect", forbidden_connection),
 ):
     from fastapi.testclient import TestClient
+    from solicitudes_partner.config.persistencia import crear_uow_solicitudes
+    from solicitudes_partner.seedwork.infraestructura.outbox import RepositorioOutbox
     from solicitudes_partner.api.app import create_app
     with TestClient(create_app()) as client:
         assert client.get("/health/live").status_code == 200
