@@ -1,6 +1,8 @@
 from types import TracebackType
 from typing import Protocol, Self
 
+from solicitudes_partner.seedwork.dominio.eventos import EventoDominio
+
 
 class UnidadTrabajo(Protocol):
     def __enter__(self) -> Self: ...
@@ -15,3 +17,5 @@ class UnidadTrabajo(Protocol):
     def confirmar(self) -> None: ...
 
     def revertir(self) -> None: ...
+
+    def registrar_salida(self, evento: EventoDominio) -> None: ...

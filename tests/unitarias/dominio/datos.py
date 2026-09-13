@@ -1,14 +1,18 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from solicitudes_partner.modulos.reglas_partner.contratos import (
+from solicitudes_partner.modulos.reglas_partner.dominio.eventos import (
     ReglasDePartnerEvaluadas,
+)
+from solicitudes_partner.modulos.reglas_partner.dominio.objetos_valor import (
+    PoliticaPartner,
     TipoRedProveedores,
 )
-from solicitudes_partner.modulos.reglas_partner.dominio.objetos_valor import PoliticaPartner
 from solicitudes_partner.modulos.reglas_partner.dominio.servicios import evaluar_solicitud
-from solicitudes_partner.modulos.solicitudes.contratos import SolicitudPartnerRegistrada
 from solicitudes_partner.modulos.solicitudes.dominio.entidades import SolicitudPartner
+from solicitudes_partner.modulos.solicitudes.dominio.eventos import (
+    SolicitudPartnerRegistrada,
+)
 from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import (
     DatosSolicitud,
     TipoSolicitud,

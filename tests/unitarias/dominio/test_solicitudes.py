@@ -5,17 +5,17 @@ from uuid import UUID
 
 import pytest
 
-from solicitudes_partner.modulos.reglas_partner.contratos import (
+from solicitudes_partner.modulos.reglas_partner.dominio.objetos_valor import (
     MotivoRechazo,
     ResultadoEvaluacion,
     TipoRedProveedores,
 )
-from solicitudes_partner.modulos.solicitudes.contratos import (
+from solicitudes_partner.modulos.solicitudes.dominio.entidades import SolicitudPartner
+from solicitudes_partner.modulos.solicitudes.dominio.eventos import (
     SolicitudPartnerListaParaAtencion,
     SolicitudPartnerRechazada,
     SolicitudPartnerRegistrada,
 )
-from solicitudes_partner.modulos.solicitudes.dominio.entidades import SolicitudPartner
 from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import EstadoSolicitud
 
 from .datos import ID_SOLICITUD, INSTANTE, datos_solicitud, resultado, solicitud_nueva
@@ -67,7 +67,7 @@ def test_evaluacion_produce_evento_final_autosuficiente(aprobacion: bool) -> Non
     solicitud = solicitud_nueva(aprobacion)
     evaluacion = resultado(aprobacion)
     solicitud.retirar_eventos()
-    solicitud.aplicar_evaluacion(
+    solicitud.aplicar_resultado_evaluacion(
         evaluacion, id_evento=UUID(int=12), instante=INSTANTE + timedelta(seconds=2)
     )
     assert solicitud.version == 2
@@ -99,12 +99,12 @@ def test_evaluacion_produce_evento_final_autosuficiente(aprobacion: bool) -> Non
 def test_reentrega_equivalente_no_cambia_estado_version_fecha_ni_eventos(aprobacion: bool) -> None:
     solicitud = solicitud_nueva(aprobacion)
     evaluacion = resultado(aprobacion)
-    solicitud.aplicar_evaluacion(
+    solicitud.aplicar_resultado_evaluacion(
         evaluacion, id_evento=UUID(int=12), instante=INSTANTE + timedelta(seconds=2)
     )
     solicitud.retirar_eventos()
     fecha = solicitud.actualizada_en
-    solicitud.aplicar_evaluacion(
+    solicitud.aplicar_resultado_evaluacion(
         replace(evaluacion), id_evento=UUID(int=99), instante=INSTANTE + timedelta(days=1)
     )
     assert solicitud.eventos_pendientes == ()
@@ -120,7 +120,7 @@ def test_evaluacion_ajena_o_desactualizada_no_modifica_agregado(cambio: dict[str
     solicitud = solicitud_nueva()
     eventos = solicitud.eventos_pendientes
     with pytest.raises(ValueError):
-        solicitud.aplicar_evaluacion(
+        solicitud.aplicar_resultado_evaluacion(
             replace(resultado(), **cambio),
             id_evento=UUID(int=12),
             instante=INSTANTE + timedelta(seconds=2),
@@ -138,7 +138,7 @@ def test_no_sustituye_evaluacion_ni_revierte_estado_terminal(
 ) -> None:
     solicitud = solicitud_nueva(aprobacion)
     inicial = resultado(aprobacion)
-    solicitud.aplicar_evaluacion(
+    solicitud.aplicar_resultado_evaluacion(
         inicial, id_evento=UUID(int=12), instante=INSTANTE + timedelta(seconds=2)
     )
     alternativa = (
@@ -148,7 +148,7 @@ def test_no_sustituye_evaluacion_ni_revierte_estado_terminal(
     )
     eventos = solicitud.eventos_pendientes
     with pytest.raises(ValueError):
-        solicitud.aplicar_evaluacion(
+        solicitud.aplicar_resultado_evaluacion(
             alternativa, id_evento=UUID(int=13), instante=INSTANTE + timedelta(seconds=3)
         )
     assert solicitud.evaluacion == inicial
@@ -174,7 +174,7 @@ def test_contrato_no_admite_resultados_incoherentes(cambio: dict[str, Any]) -> N
 def test_reconstruccion_conserva_estado_sin_reemitir_eventos(aprobacion: bool | None) -> None:
     solicitud = solicitud_nueva(aprobacion is not False)
     if aprobacion is not None:
-        solicitud.aplicar_evaluacion(
+        solicitud.aplicar_resultado_evaluacion(
             resultado(aprobacion), id_evento=UUID(int=12), instante=INSTANTE + timedelta(seconds=2)
         )
     copia = SolicitudPartner.reconstruir(
@@ -219,7 +219,7 @@ def test_error_al_crear_evento_final_no_aplica_transicion_parcial() -> None:
     solicitud = solicitud_nueva()
     anteriores = solicitud.eventos_pendientes
     with pytest.raises(ValueError):
-        solicitud.aplicar_evaluacion(
+        solicitud.aplicar_resultado_evaluacion(
             resultado(), id_evento=UUID(int=12), instante=INSTANTE - timedelta(seconds=1)
         )
     assert solicitud.version == 1
@@ -246,7 +246,7 @@ def test_contrato_de_rechazo_exige_motivo_valido_sin_red(cambio: dict[str, Any])
 @pytest.mark.parametrize("aprobacion", [True, False])
 def test_reconstruir_estado_terminal_con_resultado_opuesto_falla(aprobacion: bool) -> None:
     solicitud = solicitud_nueva(aprobacion)
-    solicitud.aplicar_evaluacion(
+    solicitud.aplicar_resultado_evaluacion(
         resultado(aprobacion), id_evento=UUID(int=12), instante=INSTANTE + timedelta(seconds=2)
     )
     with pytest.raises(ValueError):
@@ -261,7 +261,7 @@ def test_solicitud_vuelve_a_validar_contrato_antes_de_modificar_estado() -> None
     object.__setattr__(evaluacion, "tipo_red", None)
     eventos = solicitud.eventos_pendientes
     with pytest.raises(ValueError):
-        solicitud.aplicar_evaluacion(
+        solicitud.aplicar_resultado_evaluacion(
             evaluacion, id_evento=UUID(int=12), instante=INSTANTE + timedelta(seconds=2)
         )
     assert solicitud.estado is EstadoSolicitud.RECIBIDA
@@ -273,7 +273,7 @@ def test_evento_final_con_identidad_invalida_no_modifica_estado() -> None:
     solicitud = solicitud_nueva()
     eventos = solicitud.eventos_pendientes
     with pytest.raises(ValueError):
-        solicitud.aplicar_evaluacion(
+        solicitud.aplicar_resultado_evaluacion(
             resultado(), id_evento=UUID(int=0), instante=INSTANTE + timedelta(seconds=2)
         )
     assert solicitud.estado is EstadoSolicitud.RECIBIDA

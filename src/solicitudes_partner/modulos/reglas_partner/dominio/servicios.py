@@ -1,8 +1,8 @@
 from datetime import datetime
 from uuid import UUID
 
-from solicitudes_partner.modulos.reglas_partner.contratos import ReglasDePartnerEvaluadas
 from solicitudes_partner.modulos.reglas_partner.dominio.entidades import EvaluacionReglasPartner
+from solicitudes_partner.modulos.reglas_partner.dominio.eventos import ReglasDePartnerEvaluadas
 from solicitudes_partner.modulos.reglas_partner.dominio.excepciones import (
     ErrorConfiguracionPolitica,
 )
@@ -11,8 +11,10 @@ from solicitudes_partner.modulos.reglas_partner.dominio.objetos_valor import (
     PoliticaPartner,
     ResultadoEvaluacion,
 )
-from solicitudes_partner.modulos.solicitudes.contratos import (
+from solicitudes_partner.modulos.solicitudes.dominio.eventos import (
     SolicitudPartnerRegistrada,
+)
+from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import (
     TipoSolicitud,
 )
 from solicitudes_partner.seedwork.dominio.validaciones import validar_instante

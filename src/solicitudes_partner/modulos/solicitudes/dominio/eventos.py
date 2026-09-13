@@ -2,8 +2,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from solicitudes_partner.modulos.reglas_partner.contratos import (
+from solicitudes_partner.modulos.reglas_partner.dominio.eventos import (
     ReglasDePartnerEvaluadas,
+)
+from solicitudes_partner.modulos.reglas_partner.dominio.objetos_valor import (
     ResultadoEvaluacion,
 )
 from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import (

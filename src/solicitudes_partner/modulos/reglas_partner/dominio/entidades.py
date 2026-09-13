@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from solicitudes_partner.modulos.reglas_partner.contratos import ReglasDePartnerEvaluadas
+from solicitudes_partner.modulos.reglas_partner.dominio.eventos import ReglasDePartnerEvaluadas
 from solicitudes_partner.seedwork.dominio.entidades import Entidad
 
 

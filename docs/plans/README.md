@@ -1,6 +1,6 @@
 # Plan de construcción — Entrada de Solicitudes de Partner
 
-Fecha: 2026-09-12. Estado: planes 01 y 02 implementados y verificados localmente. Planes 03–08 pendientes. [Evidencia del plan 01](evidencia-01-base-tecnologica.md) · [Evidencia del plan 02](evidencia-02-modelo-dominio-seedwork.md).
+Fecha: 2026-09-12. Estado: planes 01–03 implementados y verificados localmente. Planes 04–08 pendientes. [Evidencia del plan 01](evidencia-01-base-tecnologica.md) · [Evidencia del plan 02](evidencia-02-modelo-dominio-seedwork.md) · [Evidencia del plan 03](evidencia-03-comandos-eventos-internos.md).
 
 ## Acuerdos que gobiernan la implementación
 

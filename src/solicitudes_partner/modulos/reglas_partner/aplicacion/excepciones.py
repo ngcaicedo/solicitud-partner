@@ -1,0 +1,2 @@
+class ConflictoEvaluacion(ValueError):
+    pass

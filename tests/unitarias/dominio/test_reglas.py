@@ -5,15 +5,15 @@ from uuid import UUID
 
 import pytest
 
-from solicitudes_partner.modulos.reglas_partner.contratos import (
-    MotivoRechazo,
-    ResultadoEvaluacion,
-    TipoRedProveedores,
-)
 from solicitudes_partner.modulos.reglas_partner.dominio.excepciones import (
     ErrorConfiguracionPolitica,
 )
-from solicitudes_partner.modulos.reglas_partner.dominio.objetos_valor import PoliticaPartner
+from solicitudes_partner.modulos.reglas_partner.dominio.objetos_valor import (
+    MotivoRechazo,
+    PoliticaPartner,
+    ResultadoEvaluacion,
+    TipoRedProveedores,
+)
 from solicitudes_partner.modulos.reglas_partner.dominio.servicios import evaluar_solicitud
 from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import TipoSolicitud
 

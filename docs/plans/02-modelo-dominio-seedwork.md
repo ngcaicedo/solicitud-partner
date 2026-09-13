@@ -2,6 +2,8 @@
 
 Estado: implementado y verificado localmente. Dependencia: 01. [Evidencia de ejecución](evidencia-02-modelo-dominio-seedwork.md) · [Modelo implementado](../modelo-dominio.md).
 
+Actualización posterior del plan 03: los eventos se trasladaron a `dominio/eventos.py` y, por decisión de Nicolás, se eliminaron las fachadas `contratos.py`. Las importaciones entre módulos usan directamente eventos y enumeraciones de mensaje. La organización descrita abajo conserva el estado original del incremento 02; la vigente está en el [plan 03](03-comandos-eventos-internos.md).
+
 ## Objetivo
 
 Implementar los modelos de dominio de Solicitudes de Partner y Reglas de Partner: el agregado `SolicitudPartner`, sus objetos valor y transiciones; la política `PoliticaPartner` y su evaluación `EvaluacionReglasPartner`; y los eventos y contratos que comunicarán los resultados entre ambos módulos. Crear el seedwork local con las abstracciones compartidas y verificar las invariantes mediante pruebas unitarias sin I/O.

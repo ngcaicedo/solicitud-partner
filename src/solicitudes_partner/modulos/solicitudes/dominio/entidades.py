@@ -3,11 +3,13 @@ from datetime import datetime
 from typing import Self
 from uuid import UUID
 
-from solicitudes_partner.modulos.reglas_partner.contratos import (
+from solicitudes_partner.modulos.reglas_partner.dominio.eventos import (
     ReglasDePartnerEvaluadas,
+)
+from solicitudes_partner.modulos.reglas_partner.dominio.objetos_valor import (
     ResultadoEvaluacion,
 )
-from solicitudes_partner.modulos.solicitudes.contratos import (
+from solicitudes_partner.modulos.solicitudes.dominio.eventos import (
     SolicitudPartnerListaParaAtencion,
     SolicitudPartnerRechazada,
     SolicitudPartnerRegistrada,
@@ -104,7 +106,8 @@ class SolicitudPartner(AgregacionRaiz):
             evaluacion=evaluacion,
         )
 
-    def aplicar_evaluacion(
+    @classmethod
+    def aplicar_resultado_evaluacion(
         self,
         evaluacion: ReglasDePartnerEvaluadas,
         *,
