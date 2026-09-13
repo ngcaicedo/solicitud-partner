@@ -12,7 +12,7 @@ Los **planes 01–03 están implementados y verificados localmente**. El servici
 | FastAPI | Factoría de aplicación y `GET /health/live`. |
 | SQLAlchemy y psycopg | Factoría de Engine y sesiones independientes, sin conexión durante el arranque. |
 | Módulos y seedwork | Solicitud, política, evaluación, agregación raíz, eventos y puertos implementados. |
-| Verificación local | 148 pruebas aprobadas; lint, formato, tipado y distribución comprobados. HTTP real verificado en 01. |
+| Verificación local | 154 pruebas aprobadas; lint, formato, tipado y distribución comprobados. HTTP real verificado en 01. |
 | Contratos internos | Registro, evaluación, solicitud lista y rechazada, con versiones y datos inmutables. |
 | Handlers y bus local | Registro idempotente, evaluación inicial única, transición y despacho por consumidor comprobados con UoW en memoria. |
 | Persistencia, Pulsar y CQRS | Pendientes de 04–06. CQRS sigue siendo obligatorio. |
@@ -113,7 +113,7 @@ docs/plans/
 
 Las carpetas y los nuevos identificadores propios de clases, funciones, variables, estados y eventos se nombran en español, sin tildes y con el vocabulario del Event Storming. La base tecnológica ya implementada conserva por ahora sus nombres; los identificadores impuestos por bibliotecas y herramientas mantienen su forma original. Se conservan los nombres técnicos `api`, `config`, `seedwork`, `src` y `tests`.
 
-`api/` contiene el adaptador HTTP y la creación de la aplicación web. `config/` contiene la lectura del entorno, la construcción de recursos SQLAlchemy y el bootstrap del flujo interno. Los módulos separan entidades y objetos valor; Reglas también separa servicios y excepciones. Los eventos se definen y se importan directamente desde `dominio/eventos.py` de su módulo. Las enumeraciones de los mensajes se importan desde `dominio/objetos_valor.py`; no hay fachadas `contratos.py`. Aplicación separa comandos, confirmaciones, excepciones, UoW y handlers; `config/bootstrap.py` conecta los tres handlers con dependencias explícitas. El bus local vive en `seedwork/infraestructura/bus_eventos_local.py`; los repositorios y UoW falsos están exclusivamente en `tests/unitarias/aplicacion/dobles/`. Seedwork separa entidades, objetos valor y eventos en archivos propios. Véase el [modelo implementado](docs/modelo-dominio.md) para responsabilidades, invariantes y límites.
+`api/` contiene el adaptador HTTP y la creación de la aplicación web. `config/` contiene la lectura del entorno, la construcción de recursos SQLAlchemy y el bootstrap del flujo interno. Los módulos separan entidades y objetos valor; Reglas también separa servicios y excepciones. Los eventos se definen y se importan directamente desde `dominio/eventos.py` de su módulo. El handler receptor de Solicitudes traduce el evento de Reglas a `ResultadoEvaluacion` y enumeraciones propias; su dominio no depende de Reglas. No hay fachadas `contratos.py`. Aplicación separa comandos, confirmaciones, excepciones, UoW y handlers; `config/bootstrap.py` conecta los tres handlers con dependencias explícitas. El bus local vive en `seedwork/infraestructura/bus_eventos_local.py`; los repositorios y UoW falsos están exclusivamente en `tests/unitarias/aplicacion/dobles/`. Seedwork separa entidades, objetos valor y eventos en archivos propios. Véase el [modelo implementado](docs/modelo-dominio.md) para responsabilidades, invariantes y límites.
 
 ### Presentación y seedwork
 

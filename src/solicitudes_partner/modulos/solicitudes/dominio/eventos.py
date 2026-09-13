@@ -2,15 +2,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from solicitudes_partner.modulos.reglas_partner.dominio.eventos import (
-    ReglasDePartnerEvaluadas,
-)
-from solicitudes_partner.modulos.reglas_partner.dominio.objetos_valor import (
-    ResultadoEvaluacion,
-)
 from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import (
+    Admisibilidad,
     DatosSolicitud,
     EstadoSolicitud,
+    ResultadoEvaluacion,
 )
 from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import (
     TipoSolicitud as TipoSolicitud,
@@ -38,13 +34,13 @@ class SolicitudPartnerRegistrada(EventoDominio):
 
 
 def validar_evaluacion_solicitud(
-    evaluacion: ReglasDePartnerEvaluadas,
+    evaluacion: ResultadoEvaluacion,
     id_solicitud: UUID,
     datos: DatosSolicitud,
     creada_en: datetime,
     actualizada_en: datetime,
 ) -> None:
-    if not isinstance(evaluacion, ReglasDePartnerEvaluadas):
+    if not isinstance(evaluacion, ResultadoEvaluacion):
         raise ValueError("Contrato de evaluacion invalido")
     evaluacion.__post_init__()
     if evaluacion.id_solicitud != id_solicitud or evaluacion.id_partner != datos.id_partner:
@@ -60,7 +56,7 @@ class _SolicitudPartnerFinalizada(EventoDominio):
     id_solicitud: UUID
     datos: DatosSolicitud
     creada_en: datetime
-    evaluacion: ReglasDePartnerEvaluadas
+    evaluacion: ResultadoEvaluacion
     version_solicitud: int = 2
 
     def __post_init__(self) -> None:
@@ -79,7 +75,7 @@ class _SolicitudPartnerFinalizada(EventoDominio):
 class SolicitudPartnerListaParaAtencion(_SolicitudPartnerFinalizada):
     def __post_init__(self) -> None:
         super().__post_init__()
-        if self.evaluacion.resultado is not ResultadoEvaluacion.ADMISIBLE:
+        if self.evaluacion.resultado is not Admisibilidad.ADMISIBLE:
             raise ValueError("Una solicitud lista requiere evaluacion admisible")
 
     @property
@@ -91,7 +87,7 @@ class SolicitudPartnerListaParaAtencion(_SolicitudPartnerFinalizada):
 class SolicitudPartnerRechazada(_SolicitudPartnerFinalizada):
     def __post_init__(self) -> None:
         super().__post_init__()
-        if self.evaluacion.resultado is not ResultadoEvaluacion.NO_ADMISIBLE:
+        if self.evaluacion.resultado is not Admisibilidad.NO_ADMISIBLE:
             raise ValueError("Una solicitud rechazada requiere evaluacion no admisible")
 
     @property

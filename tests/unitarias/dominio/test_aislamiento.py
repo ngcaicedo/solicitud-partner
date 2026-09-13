@@ -80,6 +80,9 @@ def test_fronteras_solo_permiten_eventos_y_tipos_de_mensaje_entre_modulos() -> N
                     propietario = partes[2]
                     if propietario == modulo:
                         continue
+                    if es_dominio and modulo == "solicitudes":
+                        infracciones.append((str(relativa), destino))
+                        continue
                     permitidos = publicos.get(propietario, {})
                     if (
                         len(partes) != 5
@@ -89,3 +92,27 @@ def test_fronteras_solo_permiten_eventos_y_tipos_de_mensaje_entre_modulos() -> N
                     ):
                         infracciones.append((str(relativa), destino))
     assert not infracciones
+
+
+def test_dominio_solicitudes_se_importa_sin_reglas_partner() -> None:
+    codigo = """
+import importlib.abc
+import sys
+
+class BloquearReglas(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.startswith('solicitudes_partner.modulos.reglas_partner'):
+            raise AssertionError(fullname)
+
+sys.meta_path.insert(0, BloquearReglas())
+from solicitudes_partner.modulos.solicitudes.dominio.entidades import SolicitudPartner
+from solicitudes_partner.modulos.solicitudes.dominio.eventos import SolicitudPartnerRechazada
+"""
+    proceso = subprocess.run(
+        [sys.executable, "-I", "-c", codigo],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+    assert proceso.returncode == 0, proceso.stdout + proceso.stderr

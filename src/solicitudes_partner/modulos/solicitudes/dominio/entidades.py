@@ -3,12 +3,6 @@ from datetime import datetime
 from typing import Self
 from uuid import UUID
 
-from solicitudes_partner.modulos.reglas_partner.dominio.eventos import (
-    ReglasDePartnerEvaluadas,
-)
-from solicitudes_partner.modulos.reglas_partner.dominio.objetos_valor import (
-    ResultadoEvaluacion,
-)
 from solicitudes_partner.modulos.solicitudes.dominio.eventos import (
     SolicitudPartnerListaParaAtencion,
     SolicitudPartnerRechazada,
@@ -16,8 +10,10 @@ from solicitudes_partner.modulos.solicitudes.dominio.eventos import (
     validar_evaluacion_solicitud,
 )
 from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import (
+    Admisibilidad,
     DatosSolicitud,
     EstadoSolicitud,
+    ResultadoEvaluacion,
 )
 from solicitudes_partner.seedwork.dominio.entidades import AgregacionRaiz
 from solicitudes_partner.seedwork.dominio.validaciones import validar_instante, validar_version
@@ -30,7 +26,7 @@ class SolicitudPartner(AgregacionRaiz):
     actualizada_en: datetime
     estado: EstadoSolicitud
     version: int
-    evaluacion: ReglasDePartnerEvaluadas | None = None
+    evaluacion: ResultadoEvaluacion | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -56,7 +52,7 @@ class SolicitudPartner(AgregacionRaiz):
             )
             estado_esperado = (
                 EstadoSolicitud.LISTA_PARA_ATENCION
-                if self.evaluacion.resultado is ResultadoEvaluacion.ADMISIBLE
+                if self.evaluacion.resultado is Admisibilidad.ADMISIBLE
                 else EstadoSolicitud.RECHAZADA
             )
             if self.estado is not estado_esperado:
@@ -94,7 +90,7 @@ class SolicitudPartner(AgregacionRaiz):
         actualizada_en: datetime,
         estado: EstadoSolicitud,
         version: int,
-        evaluacion: ReglasDePartnerEvaluadas | None,
+        evaluacion: ResultadoEvaluacion | None,
     ) -> Self:
         return cls(
             id=id,
@@ -106,10 +102,9 @@ class SolicitudPartner(AgregacionRaiz):
             evaluacion=evaluacion,
         )
 
-    @classmethod
     def aplicar_resultado_evaluacion(
         self,
-        evaluacion: ReglasDePartnerEvaluadas,
+        evaluacion: ResultadoEvaluacion,
         *,
         id_evento: UUID,
         instante: datetime,
@@ -122,7 +117,7 @@ class SolicitudPartner(AgregacionRaiz):
         validar_evaluacion_solicitud(evaluacion, self.id, self.datos, self.creada_en, instante)
         clase_evento = (
             SolicitudPartnerListaParaAtencion
-            if evaluacion.resultado is ResultadoEvaluacion.ADMISIBLE
+            if evaluacion.resultado is Admisibilidad.ADMISIBLE
             else SolicitudPartnerRechazada
         )
         evento = clase_evento(

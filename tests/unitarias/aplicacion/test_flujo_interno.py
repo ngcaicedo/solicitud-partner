@@ -1,4 +1,4 @@
-from dataclasses import replace
+from dataclasses import asdict, replace
 
 import pytest
 
@@ -17,7 +17,10 @@ from solicitudes_partner.modulos.solicitudes.dominio.eventos import (
     SolicitudPartnerRechazada,
     SolicitudPartnerRegistrada,
 )
-from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import TipoSolicitud
+from solicitudes_partner.modulos.solicitudes.dominio.objetos_valor import (
+    ResultadoEvaluacion,
+    TipoSolicitud,
+)
 from solicitudes_partner.seedwork.infraestructura.bus_eventos_local import BusEventosLocal
 from tests.unitarias.aplicacion.datos import Escenario
 from tests.unitarias.dominio.datos import ID_PARTNER, datos_solicitud, politica
@@ -58,8 +61,11 @@ def test_recorrido_por_etapas_y_reentregas(
     assert isinstance(
         terminal, SolicitudPartnerRechazada if rechazada else SolicitudPartnerListaParaAtencion
     )
-    assert terminal.evaluacion == evaluacion
-    assert terminal.evaluacion.tipo_red == (None if rechazada else red)
+    assert isinstance(terminal.evaluacion, ResultadoEvaluacion)
+    assert asdict(terminal.evaluacion) == asdict(evaluacion)
+    assert (terminal.evaluacion.tipo_red.value if terminal.evaluacion.tipo_red else None) == (
+        None if rechazada else red.value
+    )
     assert terminal.version_solicitud == 2
     assert registro.instante <= evaluacion.instante <= terminal.instante
     escenario.bus.publicar(registro)

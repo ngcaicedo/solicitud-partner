@@ -8,7 +8,8 @@ from tests.unitarias.aplicacion.dobles.unidad_trabajo import (
     EstadoSolicitudes,
     UnidadTrabajoSolicitudesMemoria,
 )
-from tests.unitarias.dominio.datos import ID_SOLICITUD, INSTANTE, resultado, solicitud_nueva
+from tests.unitarias.dominio.datos import ID_SOLICITUD, INSTANTE, solicitud_nueva
+from tests.unitarias.dominio.datos_resultados import resultado_solicitud
 
 
 @pytest.mark.parametrize("fallar", [False, True])
@@ -41,7 +42,9 @@ def test_actualizacion_no_filtra_mutaciones_ni_pendientes(terminacion: str) -> N
             copia = unidad.solicitudes.obtener(ID_SOLICITUD)
             assert copia is not None and copia is not original
             copia.aplicar_resultado_evaluacion(
-                resultado(), id_evento=UUID(int=30), instante=INSTANTE + timedelta(seconds=2)
+                resultado_solicitud(),
+                id_evento=UUID(int=30),
+                instante=INSTANTE + timedelta(seconds=2),
             )
             for evento in copia.retirar_eventos():
                 unidad.registrar_salida(evento)
@@ -67,7 +70,7 @@ def test_confirmacion_no_expone_instancia_modificable_y_uow_nueva_ve_estado() ->
         unidad.solicitudes.guardar(solicitud)
         unidad.confirmar()
     solicitud.aplicar_resultado_evaluacion(
-        resultado(), id_evento=UUID(int=30), instante=INSTANTE + timedelta(seconds=2)
+        resultado_solicitud(), id_evento=UUID(int=30), instante=INSTANTE + timedelta(seconds=2)
     )
     with UnidadTrabajoSolicitudesMemoria(almacen) as siguiente:
         conservada = siguiente.solicitudes.obtener(ID_SOLICITUD)
